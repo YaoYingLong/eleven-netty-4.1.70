@@ -34,9 +34,11 @@ public abstract class MultithreadEventLoopGroup extends MultithreadEventExecutor
 
     private static final InternalLogger logger = InternalLoggerFactory.getInstance(MultithreadEventLoopGroup.class);
 
+    // DEFAULT_EVENT_LOOP_THREADS默认为CPU核数的两倍，最小为1个线程，可通过-Dio.netty.eventLoopThreads设置
     private static final int DEFAULT_EVENT_LOOP_THREADS;
 
     static {
+        // DEFAULT_EVENT_LOOP_THREADS默认为CPU核数的两倍，最小为1个线程，可通过-Dio.netty.eventLoopThreads设置
         DEFAULT_EVENT_LOOP_THREADS = Math.max(1, SystemPropertyUtil.getInt(
                 "io.netty.eventLoopThreads", NettyRuntime.availableProcessors() * 2));
 
@@ -49,6 +51,8 @@ public abstract class MultithreadEventLoopGroup extends MultithreadEventExecutor
      * @see MultithreadEventExecutorGroup#MultithreadEventExecutorGroup(int, Executor, Object...)
      */
     protected MultithreadEventLoopGroup(int nThreads, Executor executor, Object... args) {
+        // DEFAULT_EVENT_LOOP_THREADS默认为CPU核数的两倍，最小为1个线程，可通过-Dio.netty.eventLoopThreads设置
+        // args中包含selectStrategyFactory为DefaultSelectStrategyFactory，和拒绝策略
         super(nThreads == 0 ? DEFAULT_EVENT_LOOP_THREADS : nThreads, executor, args);
     }
 
@@ -75,6 +79,7 @@ public abstract class MultithreadEventLoopGroup extends MultithreadEventExecutor
 
     @Override
     public EventLoop next() {
+        // 最终调用前面创建的PowerOfTwoEventExecutorChooser或GenericEventExecutorChooser的next方法从工作组中选择一个NioEventLoop
         return (EventLoop) super.next();
     }
 
@@ -83,6 +88,13 @@ public abstract class MultithreadEventLoopGroup extends MultithreadEventExecutor
 
     @Override
     public ChannelFuture register(Channel channel) {
+        /**
+         * next方法最终调用前面创建的PowerOfTwoEventExecutorChooser或GenericEventExecutorChooser的next方法从工作组中选择一个NioEventLoop来执行register方法
+         * 最终会调用NioEventLoop的超类SingleThreadEventLoop的register方法
+         *
+         * 若是服务端传入的Channel为：NioServerSocketChannel
+         * 若是客户端传入的Channel为：NioSocketChannel
+         */
         return next().register(channel);
     }
 

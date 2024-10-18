@@ -43,10 +43,11 @@ import java.util.Map;
  * A {@link io.netty.channel.socket.ServerSocketChannel} implementation which uses
  * NIO selector based implementation to accept new connections.
  */
-public class NioServerSocketChannel extends AbstractNioMessageChannel
-                             implements io.netty.channel.socket.ServerSocketChannel {
+public class NioServerSocketChannel extends AbstractNioMessageChannel implements io.netty.channel.socket.ServerSocketChannel {
 
     private static final ChannelMetadata METADATA = new ChannelMetadata(false, 16);
+    // 如果是Windows平台DEFAULT_SELECTOR_PROVIDER是WindowsSelectorProvider，通过openSelector产生的是WindowsSelectorImpl
+    // 如果是Linux平台则DEFAULT_SELECTOR_PROVIDER是EPollSelectorProvider，通过openSelector产生的是EPollSelectorImpl
     private static final SelectorProvider DEFAULT_SELECTOR_PROVIDER = SelectorProvider.provider();
 
     private static final InternalLogger logger = InternalLoggerFactory.getInstance(NioServerSocketChannel.class);
@@ -59,6 +60,10 @@ public class NioServerSocketChannel extends AbstractNioMessageChannel
              *
              *  See <a href="https://github.com/netty/netty/issues/2308">#2308</a>.
              */
+            // 如果是Windows平台provider是WindowsSelectorProvider，通过openSelector产生的是WindowsSelectorImpl
+            // 如果是Linux平台则provider是EPollSelectorProvider，通过openSelector产生的是EPollSelectorImpl
+            // 调用SelectorProvider的openServerSocketChannel方法创建一个在本地端口进行监听的服务Socket通道，相当于NIO中调用ServerSocketChannel.open()方法
+            // 这里最终会调用超类SelectorProviderImpl的openServerSocketChannel，返回一个ServerSocketChannelImpl
             return provider.openServerSocketChannel();
         } catch (IOException e) {
             throw new ChannelException(
@@ -72,6 +77,8 @@ public class NioServerSocketChannel extends AbstractNioMessageChannel
      * Create a new instance
      */
     public NioServerSocketChannel() {
+        // 如果是Windows平台DEFAULT_SELECTOR_PROVIDER是WindowsSelectorProvider，通过openSelector产生的是WindowsSelectorImpl
+        // 如果是Linux平台则DEFAULT_SELECTOR_PROVIDER是EPollSelectorProvider，通过openSelector产生的是EPollSelectorImpl
         this(newSocket(DEFAULT_SELECTOR_PROVIDER));
     }
 
@@ -79,13 +86,19 @@ public class NioServerSocketChannel extends AbstractNioMessageChannel
      * Create a new instance using the given {@link SelectorProvider}.
      */
     public NioServerSocketChannel(SelectorProvider provider) {
+        // 如果是Windows平台provider是WindowsSelectorProvider，通过openSelector产生的是WindowsSelectorImpl
+        // 如果是Linux平台则provider是EPollSelectorProvider，通过openSelector产生的是EPollSelectorImpl
         this(newSocket(provider));
     }
 
     /**
      * Create a new instance using the given {@link ServerSocketChannel}.
+     * 需要注意的是Server端的NioServerSocketChannel的超类是AbstractNioMessageChannel
+     * Client端的NioSocketChannel的超类是AbstractNioByteChannel
      */
     public NioServerSocketChannel(ServerSocketChannel channel) {
+        // 调用超类的构造方法初始化ChannelPipeline，且将NIO的ServerSocketChannel设置为非阻塞模式，且设置readInterestOp为对客户端accept连接操作感兴趣
+        // 在AbstractChannel超类的构造方法中中会初始化DefaultChannelPipeline
         super(null, channel, SelectionKey.OP_ACCEPT);
         config = new NioServerSocketChannelConfig(this, javaChannel().socket());
     }
@@ -144,10 +157,12 @@ public class NioServerSocketChannel extends AbstractNioMessageChannel
 
     @Override
     protected int doReadMessages(List<Object> buf) throws Exception {
+        // 获取SocketChannel
         SocketChannel ch = SocketUtils.accept(javaChannel());
 
         try {
             if (ch != null) {
+                // 将SocketChannel包装为NioSocketChannel，且初始化ChannelPipeline将阻塞模式设置为非阻塞
                 buf.add(new NioSocketChannel(this, ch));
                 return 1;
             }

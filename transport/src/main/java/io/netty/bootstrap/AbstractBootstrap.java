@@ -56,6 +56,8 @@ public abstract class AbstractBootstrap<B extends AbstractBootstrap<B, C>, C ext
     @SuppressWarnings("unchecked")
     private static final Map.Entry<AttributeKey<?>, Object>[] EMPTY_ATTRIBUTE_ARRAY = new Map.Entry[0];
 
+    // 若是服务端：该EventLoopGroup是通过bootstrap.group(bossGroup, workerGroup)传入的bossGroup，用于处理连接事件的
+    // 如果是客户端：则该EventLoopGroup则是通过bootstrap.group(group)设置的线程组
     volatile EventLoopGroup group;
     @SuppressWarnings("deprecation")
     private volatile ChannelFactory<? extends C> channelFactory;
@@ -65,6 +67,7 @@ public abstract class AbstractBootstrap<B extends AbstractBootstrap<B, C>, C ext
     // purposes.
     private final Map<ChannelOption<?>, Object> options = new LinkedHashMap<ChannelOption<?>, Object>();
     private final Map<AttributeKey<?>, Object> attrs = new ConcurrentHashMap<AttributeKey<?>, Object>();
+    // 不管是Bootstrap还是ServerBootstrap，其调用的handler方法设置的ChannelInitializer最终会赋值给handler
     private volatile ChannelHandler handler;
 
     AbstractBootstrap() {
@@ -106,8 +109,8 @@ public abstract class AbstractBootstrap<B extends AbstractBootstrap<B, C>, C ext
      * {@link Channel} implementation has no no-args constructor.
      */
     public B channel(Class<? extends C> channelClass) {
-        return channelFactory(new ReflectiveChannelFactory<C>(
-                ObjectUtil.checkNotNull(channelClass, "channelClass")
+        // 如果我们传入的NioServerSocketChannel，则会将其封装到ReflectiveChannelFactory中
+        return channelFactory(new ReflectiveChannelFactory<C>(ObjectUtil.checkNotNull(channelClass, "channelClass")
         ));
     }
 
@@ -120,7 +123,7 @@ public abstract class AbstractBootstrap<B extends AbstractBootstrap<B, C>, C ext
         if (this.channelFactory != null) {
             throw new IllegalStateException("channelFactory set already");
         }
-
+        // channelFactory是ReflectiveChannelFactory，最终会调用其newChannel方法通过反射的方式调用NioServerSocketChannel或NioSocketChannel的构造方法实例化
         this.channelFactory = channelFactory;
         return self();
     }
@@ -241,6 +244,8 @@ public abstract class AbstractBootstrap<B extends AbstractBootstrap<B, C>, C ext
 
     /**
      * Create a new {@link Channel} and bind it.
+     *
+     * 调用ServerBootstrap的bind方法最终调用超类AbstractBootstrap的bind
      */
     public ChannelFuture bind(int inetPort) {
         return bind(new InetSocketAddress(inetPort));
@@ -269,6 +274,17 @@ public abstract class AbstractBootstrap<B extends AbstractBootstrap<B, C>, C ext
     }
 
     private ChannelFuture doBind(final SocketAddress localAddress) {
+        /**
+         * 通过调用ReflectiveChannelFactory的newChannel方法，通过反射的方式调用NioServerSocketChannel构造方法
+         * NioServerSocketChannel构造方法中
+         *  - 会调用其超类的构造方法初始化ChannelPipeline
+         *  - 将NIO的ServerSocketChannel设置为非阻塞模式
+         *  - 设置readInterestOp为对客户端accept连接操作感兴趣
+         *  - 在AbstractChannel超类的构造方法中中会初始化DefaultChannelPipeline
+         *
+         *  给NioServerSocketChannel设置options参数，将用户自定义的ChannelPipeline封装成ServerBootstrapAcceptor添加到ChannelPipeline
+         *  将ServerSocketChannel注册到BossGroup中的一个线程的Selector上
+         */
         final ChannelFuture regFuture = initAndRegister();
         final Channel channel = regFuture.channel();
         if (regFuture.cause() != null) {
@@ -305,9 +321,20 @@ public abstract class AbstractBootstrap<B extends AbstractBootstrap<B, C>, C ext
     }
 
     final ChannelFuture initAndRegister() {
+        // 若是服务端实际类型为NioServerSocketChannel，如实客户端实际类型为NioSocketChannel
         Channel channel = null;
         try {
+            /**
+             * 通过调用ReflectiveChannelFactory的newChannel方法，通过反射的方式调用NioServerSocketChannel或NioSocketChannel构造方法
+             * NioServerSocketChannel或NioSocketChannel构造方法中
+             *  - 会调用其超类的构造方法初始化ChannelPipeline
+             *  - 将NIO的ServerSocketChannel设置为非阻塞模式
+             *  - 设置readInterestOp为对客户端accept连接操作感兴趣
+             *  - 在AbstractChannel超类的构造方法中中会初始化DefaultChannelPipeline
+             */
             channel = channelFactory.newChannel();
+            // 这里的init方法若是服务端则是ServerBootstrap提供，若是客户端则是Bootstrap提供的
+            // 给NioServerSocketChannel或NioSocketChannel设置options参数，将用户自定义的ChannelPipeline封装成ServerBootstrapAcceptor添加到ChannelPipeline
             init(channel);
         } catch (Throwable t) {
             if (channel != null) {
@@ -320,6 +347,13 @@ public abstract class AbstractBootstrap<B extends AbstractBootstrap<B, C>, C ext
             return new DefaultChannelPromise(new FailedChannel(), GlobalEventExecutor.INSTANCE).setFailure(t);
         }
 
+        /**
+         * 服务端：通过调用ServerBootstrap的config方法，然后调用group获取到bossGroup，本质是一个MultithreadEventLoopGroup
+         *  - 调用MultithreadEventLoopGroup的register方法，将NioServerSocketChannel注册到BossGroup中的一个NioEventLoop线程的Selector上
+         *
+         * 客户端：通过调用Bootstrap的config方法，然后调用group获取到group，本质是一个MultithreadEventLoopGroup
+         *  - 调用MultithreadEventLoopGroup的register方法，将NioSocketChannel注册到BossGroup中的一个NioEventLoop线程的Selector上
+         */
         ChannelFuture regFuture = config().group().register(channel);
         if (regFuture.cause() != null) {
             if (channel.isRegistered()) {

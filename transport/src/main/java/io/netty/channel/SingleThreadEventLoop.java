@@ -78,12 +78,30 @@ public abstract class SingleThreadEventLoop extends SingleThreadEventExecutor im
 
     @Override
     public ChannelFuture register(Channel channel) {
+        /**
+         * 不论服务端还是客户端，这里的this其实就是NioEventLoop
+         *
+         * 若是服务端传入的Channel为：NioServerSocketChannel
+         * 若是客户端传入的Channel为：NioSocketChannel
+         */
         return register(new DefaultChannelPromise(channel, this));
     }
 
     @Override
     public ChannelFuture register(final ChannelPromise promise) {
         ObjectUtil.checkNotNull(promise, "promise");
+
+        /**
+         * 这里会调用DefaultChannelPromise的channel获取到传入的Channel，
+         *  - 若是服务端传入的Channel为：NioServerSocketChannel
+         *  - 若是客户端传入的Channel为：NioSocketChannel
+         *
+         * 然后调用具体的Channel的unsafe方法
+         *  - 服务端：的具体实现类是AbstractNioMessageChannel，最终会返回NioMessageUnsafe
+         *  - 客户端：的具体实现类是AbstractNioByteChannel，最终会返回NioByteUnsafe
+         *
+         * 然后调用超类AbstractUnsafe的register方法，这里this就是NioEventLoop
+         */
         promise.channel().unsafe().register(this, promise);
         return promise;
     }

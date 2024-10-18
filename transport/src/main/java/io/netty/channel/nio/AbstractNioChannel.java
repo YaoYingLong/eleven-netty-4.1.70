@@ -47,10 +47,13 @@ import java.util.concurrent.TimeUnit;
  */
 public abstract class AbstractNioChannel extends AbstractChannel {
 
-    private static final InternalLogger logger =
-            InternalLoggerFactory.getInstance(AbstractNioChannel.class);
-
+    private static final InternalLogger logger = InternalLoggerFactory.getInstance(AbstractNioChannel.class);
+    /**
+     * 若是服务端：ch是在调用NioServerSocketChannel的构造方法时传入的ServerSocketChannel
+     * 若是服务端：ch是在调用NioSocketChannel的构造方法时传入的SocketChannel
+     */
     private final SelectableChannel ch;
+    // readInterestOp是在调用NioServerSocketChannel的构造方法时传入的SelectionKey.OP_ACCEPT
     protected final int readInterestOp;
     volatile SelectionKey selectionKey;
     boolean readPending;
@@ -77,19 +80,23 @@ public abstract class AbstractNioChannel extends AbstractChannel {
      * @param readInterestOp    the ops to set to receive data from the {@link SelectableChannel}
      */
     protected AbstractNioChannel(Channel parent, SelectableChannel ch, int readInterestOp) {
+        // 这里传入的parent为null, 但是超类中会初始化DefaultChannelPipeline
         super(parent);
+        /**
+         * 若是服务端：ch是在调用NioServerSocketChannel的构造方法时传入的ServerSocketChannel
+         * 若是服务端：ch是在调用NioSocketChannel的构造方法时传入的SocketChannel
+         */
         this.ch = ch;
         this.readInterestOp = readInterestOp;
         try {
+            // 将NIO的ServerSocketChannel设置为非阻塞模式
             ch.configureBlocking(false);
         } catch (IOException e) {
             try {
                 ch.close();
             } catch (IOException e2) {
-                logger.warn(
-                            "Failed to close a partially initialized socket.", e2);
+                logger.warn("Failed to close a partially initialized socket.", e2);
             }
-
             throw new ChannelException("Failed to enter non-blocking mode.", e);
         }
     }
@@ -105,6 +112,12 @@ public abstract class AbstractNioChannel extends AbstractChannel {
     }
 
     protected SelectableChannel javaChannel() {
+        /**
+         * 本类是调用ServerBootstrap或Bootstrap的channel方法时传入的NioServerSocketChannel的超类，在执行bind是实例化
+         *
+         * 若是服务端：ch是在调用NioServerSocketChannel的构造方法时传入的ServerSocketChannel
+         * 若是服务端：ch是在调用NioSocketChannel的构造方法时传入的SocketChannel
+         */
         return ch;
     }
 
@@ -232,8 +245,7 @@ public abstract class AbstractNioChannel extends AbstractChannel {
         }
 
         @Override
-        public final void connect(
-                final SocketAddress remoteAddress, final SocketAddress localAddress, final ChannelPromise promise) {
+        public final void connect(final SocketAddress remoteAddress, final SocketAddress localAddress, final ChannelPromise promise) {
             if (!promise.setUncancellable() || !ensureOpen(promise)) {
                 return;
             }
@@ -377,6 +389,14 @@ public abstract class AbstractNioChannel extends AbstractChannel {
         boolean selected = false;
         for (;;) {
             try {
+                /**
+                 * 该类其实就是调用ServerBootstrap或Bootstrap的channel方法时传入的，在执行bind是实例化的NioServerSocketChannel或NioSocketChannel的超类
+                 * 其实这里javaChannel方法就是调用AbstractNioChannel的javaChannel
+                 *  - 若是服务端则获取的是ServerSocketChannel，本质就是调用ServerSocketChannel.register
+                 *  - 若是客户端则获取的是SocketChannel，本质就是调用SocketChannel.register
+                 *
+                 * eventLoop().unwrappedSelector()返回的是workEventLoop中持有的Selector，这里传入的0，既不能读也不能写
+                 */
                 selectionKey = javaChannel().register(eventLoop().unwrappedSelector(), 0, this);
                 return;
             } catch (CancelledKeyException e) {

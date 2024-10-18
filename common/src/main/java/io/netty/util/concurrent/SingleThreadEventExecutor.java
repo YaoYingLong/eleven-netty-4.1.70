@@ -822,8 +822,10 @@ public abstract class SingleThreadEventExecutor extends AbstractScheduledEventEx
 
     private void execute(Runnable task, boolean immediate) {
         boolean inEventLoop = inEventLoop();
+        // 将任务添加到队列taskQueue队列中
         addTask(task);
         if (!inEventLoop) {
+            // 最终调用SingleThreadEventExecutor的子类NioEventLoop的run方法
             startThread();
             if (isShutdown()) {
                 boolean reject = false;
@@ -983,6 +985,7 @@ public abstract class SingleThreadEventExecutor extends AbstractScheduledEventEx
                 boolean success = false;
                 updateLastExecutionTime();
                 try {
+                    // 调用子类NioEventLoop的run方法
                     SingleThreadEventExecutor.this.run();
                     success = true;
                 } catch (Throwable t) {

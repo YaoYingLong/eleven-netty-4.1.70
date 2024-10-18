@@ -32,6 +32,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 public abstract class MultithreadEventExecutorGroup extends AbstractEventExecutorGroup {
 
+    // 这里的EventExecutor实现类其实是NioEventLoop
     private final EventExecutor[] children;
     private final Set<EventExecutor> readonlyChildren;
     private final AtomicInteger terminatedChildren = new AtomicInteger();
@@ -57,6 +58,7 @@ public abstract class MultithreadEventExecutorGroup extends AbstractEventExecuto
      * @param args              arguments which will passed to each {@link #newChild(Executor, Object...)} call
      */
     protected MultithreadEventExecutorGroup(int nThreads, Executor executor, Object... args) {
+        // DefaultEventExecutorChooserFactory.INSTANCE返回的EventExecutor选择器工厂类
         this(nThreads, executor, DefaultEventExecutorChooserFactory.INSTANCE, args);
     }
 
@@ -68,19 +70,18 @@ public abstract class MultithreadEventExecutorGroup extends AbstractEventExecuto
      * @param chooserFactory    the {@link EventExecutorChooserFactory} to use.
      * @param args              arguments which will passed to each {@link #newChild(Executor, Object...)} call
      */
-    protected MultithreadEventExecutorGroup(int nThreads, Executor executor,
-                                            EventExecutorChooserFactory chooserFactory, Object... args) {
+    protected MultithreadEventExecutorGroup(int nThreads, Executor executor, EventExecutorChooserFactory chooserFactory, Object... args) {
         checkPositive(nThreads, "nThreads");
-
+        // 默认传入的executor为null
         if (executor == null) {
             executor = new ThreadPerTaskExecutor(newDefaultThreadFactory());
         }
-
+        // children其实是NioEventLoop，nThreads默认为CPU核数的两倍，最小为1个线程，可通过-Dio.netty.eventLoopThreads设置
         children = new EventExecutor[nThreads];
-
         for (int i = 0; i < nThreads; i ++) {
             boolean success = false;
             try {
+                // 这里调用的是NioEventLoopGroup的newChild方法，从而调用NioEventLoop的构造方法对EventExecutor数组中的每个元素实例化
                 children[i] = newChild(executor, args);
                 success = true;
             } catch (Exception e) {
@@ -107,7 +108,8 @@ public abstract class MultithreadEventExecutorGroup extends AbstractEventExecuto
                 }
             }
         }
-
+        // 返回具体的选择器，如果children的数量为2的整数次幂，返回PowerOfTwoEventExecutorChooser
+        // 如果children的数量不为2的整数次幂，否则返回GenericEventExecutorChooser
         chooser = chooserFactory.newChooser(children);
 
         final FutureListener<Object> terminationListener = new FutureListener<Object>() {

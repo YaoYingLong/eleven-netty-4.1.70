@@ -56,8 +56,11 @@ import static io.netty.channel.internal.ChannelUtils.MAX_BYTES_PER_GATHERING_WRI
  */
 public class NioSocketChannel extends AbstractNioByteChannel implements io.netty.channel.socket.SocketChannel {
     private static final InternalLogger logger = InternalLoggerFactory.getInstance(NioSocketChannel.class);
+    // 如果是Windows平台DEFAULT_SELECTOR_PROVIDER是WindowsSelectorProvider，通过openSelector产生的是WindowsSelectorImpl
+    // 如果是Linux平台则DEFAULT_SELECTOR_PROVIDER是EPollSelectorProvider，通过openSelector产生的是EPollSelectorImpl
     private static final SelectorProvider DEFAULT_SELECTOR_PROVIDER = SelectorProvider.provider();
 
+    // 在构造方法中被调用
     private static SocketChannel newSocket(SelectorProvider provider) {
         try {
             /**
@@ -65,6 +68,10 @@ public class NioSocketChannel extends AbstractNioByteChannel implements io.netty
              *  {@link SelectorProvider#provider()} which is called by each SocketChannel.open() otherwise.
              *
              *  See <a href="https://github.com/netty/netty/issues/2308">#2308</a>.
+             *  如果是Windows平台provider是WindowsSelectorProvider，通过openSelector产生的是WindowsSelectorImpl
+             *  如果是Linux平台则provider是EPollSelectorProvider，通过openSelector产生的是EPollSelectorImpl
+             *  调用SelectorProvider的openServerSocketChannel方法创建一个在本地端口进行监听的服务Socket通道，相当于NIO中调用ServerSocketChannel.open()方法
+             *  这里最终会调用超类SelectorProviderImpl的openServerSocketChannel，返回一个ServerSocketChannelImpl
              */
             return provider.openSocketChannel();
         } catch (IOException e) {
@@ -100,8 +107,12 @@ public class NioSocketChannel extends AbstractNioByteChannel implements io.netty
      *
      * @param parent    the {@link Channel} which created this instance or {@code null} if it was created by the user
      * @param socket    the {@link SocketChannel} which will be used
+     *
+     * 需要注意的是Server端的NioServerSocketChannel的超类是AbstractNioMessageChannel
+     * Client端的NioSocketChannel的超类是AbstractNioByteChannel
      */
     public NioSocketChannel(Channel parent, SocketChannel socket) {
+        // 调用超类AbstractNioByteChannel的构造方法
         super(parent, socket);
         config = new NioSocketChannelConfig(this, socket.socket());
     }

@@ -94,11 +94,11 @@ public class DefaultChannelPipeline implements ChannelPipeline {
         succeededFuture = new SucceededChannelFuture(channel, null);
         voidPromise =  new VoidChannelPromise(channel, true);
 
-        tail = new TailContext(this);
-        head = new HeadContext(this);
+        tail = new TailContext(this);   // 创建ChannelPipeline的尾节点
+        head = new HeadContext(this);   // 创建ChannelPipeline的头节点
 
-        head.next = tail;
-        tail.prev = head;
+        head.next = tail;   // 将head头节点的next指向tail尾节点
+        tail.prev = head;   // 将tail尾节点的prev指向head头节点
     }
 
     final MessageSizeEstimator.Handle estimatorHandle() {
@@ -1458,6 +1458,7 @@ public class DefaultChannelPipeline implements ChannelPipeline {
 
         @Override
         void execute() {
+            // 调用AbstractChannelHandlerContext的executor方法，获取NioEventLoop
             EventExecutor executor = ctx.executor();
             if (executor.inEventLoop()) {
                 callHandlerAdded0(ctx);

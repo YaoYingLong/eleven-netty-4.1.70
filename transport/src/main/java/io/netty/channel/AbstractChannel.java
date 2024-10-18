@@ -71,7 +71,13 @@ public abstract class AbstractChannel extends DefaultAttributeMap implements Cha
     protected AbstractChannel(Channel parent) {
         this.parent = parent;
         id = newId();
+        /**
+         * 这里的newUnsafe是一个抽象方法，对针对服务端和客户端有不同的实现
+         * 服务端：的具体实现类是AbstractNioMessageChannel，最终会返回NioMessageUnsafe
+         * 客户端：的具体实现类是AbstractNioByteChannel，最终会返回NioByteUnsafe
+         */
         unsafe = newUnsafe();
+        // new一个DefaultChannelPipeline
         pipeline = newChannelPipeline();
     }
 
@@ -84,6 +90,11 @@ public abstract class AbstractChannel extends DefaultAttributeMap implements Cha
     protected AbstractChannel(Channel parent, ChannelId id) {
         this.parent = parent;
         this.id = id;
+        /**
+         * 这里的newUnsafe是一个抽象方法，对针对服务端和客户端有不同的实现
+         * 服务端：的具体实现类是AbstractNioMessageChannel，最终会返回NioMessageUnsafe
+         * 客户端：的具体实现类是AbstractNioByteChannel，最终会返回NioByteUnsafe
+         */
         unsafe = newUnsafe();
         pipeline = newChannelPipeline();
     }
@@ -338,6 +349,10 @@ public abstract class AbstractChannel extends DefaultAttributeMap implements Cha
 
     @Override
     public Unsafe unsafe() {
+        /**
+         * 服务端：的具体实现类是AbstractNioMessageChannel，最终会返回NioMessageUnsafe
+         * 客户端：的具体实现类是AbstractNioByteChannel，最终会返回NioByteUnsafe
+         */
         return unsafe;
     }
 
@@ -461,6 +476,11 @@ public abstract class AbstractChannel extends DefaultAttributeMap implements Cha
             return remoteAddress0();
         }
 
+        /**
+         * 这里的ChannelPromise是DefaultChannelPromise，其中持有channel
+         *  - 若是服务端传入的Channel为：NioServerSocketChannel
+         *  - 若是客户端传入的Channel为：NioSocketChannel
+         */
         @Override
         public final void register(EventLoop eventLoop, final ChannelPromise promise) {
             ObjectUtil.checkNotNull(eventLoop, "eventLoop");
@@ -469,27 +489,29 @@ public abstract class AbstractChannel extends DefaultAttributeMap implements Cha
                 return;
             }
             if (!isCompatible(eventLoop)) {
-                promise.setFailure(
-                        new IllegalStateException("incompatible event loop type: " + eventLoop.getClass().getName()));
+                promise.setFailure(new IllegalStateException("incompatible event loop type: " + eventLoop.getClass().getName()));
                 return;
             }
 
+            // 这里传入的eventLoop若是服务端则是workerGroup中的一个NioEventLoop，若是客户端则就是group中的一个NioEventLoop
             AbstractChannel.this.eventLoop = eventLoop;
 
+            // 这里会调用NioEventLoop的超类AbstractEventExecutor的inEventLoop，然后再调用SingleThreadEventExecutor的inEventLoop
+            // 目的是判断当前线程是否已经是SingleThreadEventExecutor中持有的线程
             if (eventLoop.inEventLoop()) {
                 register0(promise);
             } else {
                 try {
+                    // 通过SingleThreadEventExecutor将该任务添加到taskQueue异步执行
                     eventLoop.execute(new Runnable() {
                         @Override
                         public void run() {
+                            // 将promise中持有的channel注册到Selector上，相当于NIO中调用ServerSocketChannel或SocketChannel的register方法
                             register0(promise);
                         }
                     });
                 } catch (Throwable t) {
-                    logger.warn(
-                            "Force-closing a channel whose registration task was not accepted by an event loop: {}",
-                            AbstractChannel.this, t);
+                    logger.warn("Force-closing a channel whose registration task was not accepted by an event loop: {}", AbstractChannel.this, t);
                     closeForcibly();
                     closeFuture.setClosed();
                     safeSetFailure(promise, t);
@@ -505,27 +527,47 @@ public abstract class AbstractChannel extends DefaultAttributeMap implements Cha
                     return;
                 }
                 boolean firstRegistration = neverRegistered;
+                // 调用AbstractNioChannel把ServerSocketChannel或SocketChannel注册到selector上，并生成selectionKey
+                /**
+                 * 调用AbstractNioChannel的doRegister
+                 *  - 若是服务端则调用ServerSocketChannel.register，生成具体的SelectionKey
+                 *  - 若是客户端则调用SocketChannel.register，生成具体的SelectionKey
+                 */
                 doRegister();
                 neverRegistered = false;
                 registered = true;
 
                 // Ensure we call handlerAdded(...) before we actually notify the promise. This is needed as the
                 // user may already fire events through the pipeline in the ChannelFutureListener.
+                /**
+                 * 实际调用DefaultChannelPipeline的invokeHandlerAddedIfNeeded方法，最终调用ServerBootstrap的init方法中添加的ChannelInitializer
+                 * 真正将ServerBootstrapAcceptor添加到ChannelPipeline
+                 */
                 pipeline.invokeHandlerAddedIfNeeded();
 
                 safeSetSuccess(promise);
+                // 调用pipeline中每个handler的channelRegistered方法
                 pipeline.fireChannelRegistered();
                 // Only fire a channelActive if the channel has never been registered. This prevents firing
                 // multiple channel actives if the channel is deregistered and re-registered.
+                /**
+                 * 仅当通道从未注册时，才触发channelActive,这可以防止在通道被取消注册并重新注册时触发多个channelactives。
+                 *
+                 * 若是服务端则调用NioServerSocketChannel的isActive方法
+                 *  - NioServerSocketChannel.isOpen() && NioSocketChannel.socket().isBound()
+                 *
+                 * 若是客户端则调用NioSocketChannel的isActive方法
+                 *  - NioSocketChannel.isOpen() && NioSocketChannel.isConnected()
+                 */
                 if (isActive()) {
                     if (firstRegistration) {
+                        // 调用所有ChannelInboundHandler的channelActive方法
                         pipeline.fireChannelActive();
-                    } else if (config().isAutoRead()) {
+                    } else if (config().isAutoRead()) { // 如果是自动读
                         // This channel was registered before and autoRead() is set. This means we need to begin read
                         // again so that we process inbound data.
-                        //
                         // See https://github.com/netty/netty/issues/4805
-                        beginRead();
+                        beginRead();     // 调用所有Handler的exceptionCaught方法
                     }
                 }
             } catch (Throwable t) {
@@ -543,7 +585,6 @@ public abstract class AbstractChannel extends DefaultAttributeMap implements Cha
             if (!promise.setUncancellable() || !ensureOpen(promise)) {
                 return;
             }
-
             // See: https://github.com/netty/netty/issues/576
             if (Boolean.TRUE.equals(config().getOption(ChannelOption.SO_BROADCAST)) &&
                 localAddress instanceof InetSocketAddress &&
@@ -551,8 +592,7 @@ public abstract class AbstractChannel extends DefaultAttributeMap implements Cha
                 !PlatformDependent.isWindows() && !PlatformDependent.maybeSuperUser()) {
                 // Warn a user about the fact that a non-root user can't receive a
                 // broadcast packet on *nix if the socket is bound on non-wildcard address.
-                logger.warn(
-                        "A non-root user can't receive a broadcast packet if the socket " +
+                logger.warn("A non-root user can't receive a broadcast packet if the socket " +
                         "is not bound to a wildcard address; binding to a non-wildcard " +
                         "address (" + localAddress + ") anyway as requested.");
             }
@@ -847,7 +887,6 @@ public abstract class AbstractChannel extends DefaultAttributeMap implements Cha
         @Override
         public final void beginRead() {
             assertEventLoop();
-
             try {
                 doBeginRead();
             } catch (final Exception e) {

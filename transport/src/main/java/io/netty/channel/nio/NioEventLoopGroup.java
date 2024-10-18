@@ -70,6 +70,8 @@ public class NioEventLoopGroup extends MultithreadEventLoopGroup {
     }
 
     public NioEventLoopGroup(int nThreads, Executor executor) {
+        // 如果是Windows平台SelectorProvider.provider()是WindowsSelectorProvider，通过openSelector产生的是WindowsSelectorImpl
+        // 如果是Linux平台则SelectorProvider.provider()是EPollSelectorProvider，通过openSelector产生的是EPollSelectorImpl
         this(nThreads, executor, SelectorProvider.provider());
     }
 
@@ -89,11 +91,17 @@ public class NioEventLoopGroup extends MultithreadEventLoopGroup {
 
     public NioEventLoopGroup(
             int nThreads, Executor executor, final SelectorProvider selectorProvider) {
+        // 如果是Windows平台selectorProvider是WindowsSelectorProvider，通过openSelector产生的是WindowsSelectorImpl
+        // 如果是Linux平台则selectorProvider是EPollSelectorProvider，通过openSelector产生的是EPollSelectorImpl
         this(nThreads, executor, selectorProvider, DefaultSelectStrategyFactory.INSTANCE);
     }
 
     public NioEventLoopGroup(int nThreads, Executor executor, final SelectorProvider selectorProvider,
                              final SelectStrategyFactory selectStrategyFactory) {
+        // 调用MultithreadEventLoopGroup的构造方法
+        // selectStrategyFactory为DefaultSelectStrategyFactory
+        // 如果是Windows平台selectorProvider是WindowsSelectorProvider，通过openSelector产生的是WindowsSelectorImpl
+        // 如果是Linux平台则selectorProvider是EPollSelectorProvider，通过openSelector产生的是EPollSelectorImpl
         super(nThreads, executor, selectorProvider, selectStrategyFactory, RejectedExecutionHandlers.reject());
     }
 
@@ -167,11 +175,14 @@ public class NioEventLoopGroup extends MultithreadEventLoopGroup {
     @Override
     protected EventLoop newChild(Executor executor, Object... args) throws Exception {
         SelectorProvider selectorProvider = (SelectorProvider) args[0];
+        // 一般默认为DefaultSelectStrategyFactory
         SelectStrategyFactory selectStrategyFactory = (SelectStrategyFactory) args[1];
+        // 拒绝策略
         RejectedExecutionHandler rejectedExecutionHandler = (RejectedExecutionHandler) args[2];
         EventLoopTaskQueueFactory taskQueueFactory = null;
         EventLoopTaskQueueFactory tailTaskQueueFactory = null;
 
+        // argsLength默认就为3
         int argsLength = args.length;
         if (argsLength > 3) {
             taskQueueFactory = (EventLoopTaskQueueFactory) args[3];
@@ -179,8 +190,7 @@ public class NioEventLoopGroup extends MultithreadEventLoopGroup {
         if (argsLength > 4) {
             tailTaskQueueFactory = (EventLoopTaskQueueFactory) args[4];
         }
-        return new NioEventLoop(this, executor, selectorProvider,
-                selectStrategyFactory.newSelectStrategy(),
+        return new NioEventLoop(this, executor, selectorProvider, selectStrategyFactory.newSelectStrategy(),
                 rejectedExecutionHandler, taskQueueFactory, tailTaskQueueFactory);
     }
 }

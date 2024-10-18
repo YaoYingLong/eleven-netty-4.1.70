@@ -51,6 +51,7 @@ public class ServerBootstrap extends AbstractBootstrap<ServerBootstrap, ServerCh
     private final Map<ChannelOption<?>, Object> childOptions = new LinkedHashMap<ChannelOption<?>, Object>();
     private final Map<AttributeKey<?>, Object> childAttrs = new ConcurrentHashMap<AttributeKey<?>, Object>();
     private final ServerBootstrapConfig config = new ServerBootstrapConfig(this);
+    // 该EventLoopGroup是通过bootstrap.group(bossGroup, workerGroup)传入的workerGroup，用于处理读写事件的
     private volatile EventLoopGroup childGroup;
     private volatile ChannelHandler childHandler;
 
@@ -129,12 +130,15 @@ public class ServerBootstrap extends AbstractBootstrap<ServerBootstrap, ServerCh
 
     @Override
     void init(Channel channel) {
+        // NioServerSocketChannel设置options参数
         setChannelOptions(channel, newOptionsArray(), logger);
         setAttributes(channel, newAttributesArray());
 
+        // 调用超类AbstractChannel的pipeline方法，获取到在NioServerSocketChannel中初始化的ChannelPipeline
         ChannelPipeline p = channel.pipeline();
-
+        // childGroup是通过bootstrap.group(bossGroup, workerGroup)传入的workerGroup，用于处理读写事件的
         final EventLoopGroup currentChildGroup = childGroup;
+        // ServerBootstrap的childHandler方法设置的回调方法
         final ChannelHandler currentChildHandler = childHandler;
         final Entry<ChannelOption<?>, Object>[] currentChildOptions = newOptionsArray(childOptions);
         final Entry<AttributeKey<?>, Object>[] currentChildAttrs = newAttributesArray(childAttrs);
@@ -151,8 +155,8 @@ public class ServerBootstrap extends AbstractBootstrap<ServerBootstrap, ServerCh
                 ch.eventLoop().execute(new Runnable() {
                     @Override
                     public void run() {
-                        pipeline.addLast(new ServerBootstrapAcceptor(
-                                ch, currentChildGroup, currentChildHandler, currentChildOptions, currentChildAttrs));
+                        // 比较关键的是将用于处理读写事件的currentChildGroup即workerGroup传入了
+                        pipeline.addLast(new ServerBootstrapAcceptor(ch, currentChildGroup, currentChildHandler, currentChildOptions, currentChildAttrs));
                     }
                 });
             }
@@ -174,15 +178,16 @@ public class ServerBootstrap extends AbstractBootstrap<ServerBootstrap, ServerCh
 
     private static class ServerBootstrapAcceptor extends ChannelInboundHandlerAdapter {
 
+        // childGroup是通过bootstrap.group(bossGroup, workerGroup)传入的workerGroup，用于处理读写事件的
         private final EventLoopGroup childGroup;
         private final ChannelHandler childHandler;
         private final Entry<ChannelOption<?>, Object>[] childOptions;
         private final Entry<AttributeKey<?>, Object>[] childAttrs;
         private final Runnable enableAutoReadTask;
 
-        ServerBootstrapAcceptor(
-                final Channel channel, EventLoopGroup childGroup, ChannelHandler childHandler,
+        ServerBootstrapAcceptor(final Channel channel, EventLoopGroup childGroup, ChannelHandler childHandler,
                 Entry<ChannelOption<?>, Object>[] childOptions, Entry<AttributeKey<?>, Object>[] childAttrs) {
+            // childGroup是通过bootstrap.group(bossGroup, workerGroup)传入的workerGroup，用于处理读写事件的
             this.childGroup = childGroup;
             this.childHandler = childHandler;
             this.childOptions = childOptions;
@@ -204,6 +209,7 @@ public class ServerBootstrap extends AbstractBootstrap<ServerBootstrap, ServerCh
         @Override
         @SuppressWarnings("unchecked")
         public void channelRead(ChannelHandlerContext ctx, Object msg) {
+            // 当有连接事件时调用channelRead方法将用户自定义的childHandler添加到ChannelPipeline中
             final Channel child = (Channel) msg;
 
             child.pipeline().addLast(childHandler);
@@ -212,6 +218,8 @@ public class ServerBootstrap extends AbstractBootstrap<ServerBootstrap, ServerCh
             setAttributes(child, childAttrs);
 
             try {
+                // 将连接过来的SocketChannel注册到WorkGroup中的一个线程的Selector上，和ServerSocketChannel注册到BossGroup走的同一个逻辑
+                // 这里调用的childGroup即workerGroup的register方法，实际是调用MultithreadEventLoopGroup的register方法
                 childGroup.register(child).addListener(new ChannelFutureListener() {
                     @Override
                     public void operationComplete(ChannelFuture future) throws Exception {

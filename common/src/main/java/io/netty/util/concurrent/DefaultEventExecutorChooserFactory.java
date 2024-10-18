@@ -32,6 +32,7 @@ public final class DefaultEventExecutorChooserFactory implements EventExecutorCh
 
     @Override
     public EventExecutorChooser newChooser(EventExecutor[] executors) {
+        // 如果是2的整数次幂
         if (isPowerOfTwo(executors.length)) {
             return new PowerOfTwoEventExecutorChooser(executors);
         } else {
@@ -40,6 +41,7 @@ public final class DefaultEventExecutorChooserFactory implements EventExecutorCh
     }
 
     private static boolean isPowerOfTwo(int val) {
+        // 判断val是否是2的整数次幂
         return (val & -val) == val;
     }
 
@@ -53,6 +55,7 @@ public final class DefaultEventExecutorChooserFactory implements EventExecutorCh
 
         @Override
         public EventExecutor next() {
+            // 因为长度为2的整数次幂，所以通过取模的方式获取EventExecutor数组中的EventExecutor
             return executors[idx.getAndIncrement() & executors.length - 1];
         }
     }
@@ -70,6 +73,7 @@ public final class DefaultEventExecutorChooserFactory implements EventExecutorCh
 
         @Override
         public EventExecutor next() {
+            // 通过取余的方式获取EventExecutor数组中的EventExecutor
             return executors[(int) Math.abs(idx.getAndIncrement() % executors.length)];
         }
     }

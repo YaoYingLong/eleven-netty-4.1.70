@@ -258,9 +258,11 @@ public class Bootstrap extends AbstractBootstrap<Bootstrap, Channel> {
 
     @Override
     void init(Channel channel) {
+        // 获取通过NioSocketChannel构造方法创建的ChannelPipeline
         ChannelPipeline p = channel.pipeline();
+        // config.handler()获取到的是调用Bootstrap的handler方法添加进来的ChannelInitializer
         p.addLast(config.handler());
-
+        // NioSocketChannel设置options参数
         setChannelOptions(channel, newOptionsArray(), logger);
         setAttributes(channel, newAttributesArray());
     }
