@@ -59,8 +59,16 @@ public class DefaultChannelPipeline implements ChannelPipeline {
     };
 
     private static final AtomicReferenceFieldUpdater<DefaultChannelPipeline, MessageSizeEstimator.Handle> ESTIMATOR =
-            AtomicReferenceFieldUpdater.newUpdater(
-                    DefaultChannelPipeline.class, MessageSizeEstimator.Handle.class, "estimatorHandle");
+            AtomicReferenceFieldUpdater.newUpdater(DefaultChannelPipeline.class, MessageSizeEstimator.Handle.class, "estimatorHandle");
+
+
+    /**
+     * 通过head和tail本身是ChannelHandlerContext，组成双向链表，且每个ChannelHandlerContext中又关联着一个ChannelHandler
+     *
+     * read事件即入站事件和write事件即出站事件在一个双向链表中
+     *  - 入站事件会从链表head往后传递到最后一个入站的handler
+     *  - 出站事件会从链表tail往前传递到最前一个出站的handler，两种类型的handler互不干扰
+     */
     final AbstractChannelHandlerContext head;
     final AbstractChannelHandlerContext tail;
 
@@ -291,8 +299,7 @@ public class DefaultChannelPipeline implements ChannelPipeline {
     }
 
     @Override
-    public final ChannelPipeline addAfter(
-            EventExecutorGroup group, String baseName, String name, ChannelHandler handler) {
+    public final ChannelPipeline addAfter(EventExecutorGroup group, String baseName, String name, ChannelHandler handler) {
         final AbstractChannelHandlerContext newCtx;
         final AbstractChannelHandlerContext ctx;
 
@@ -979,8 +986,8 @@ public class DefaultChannelPipeline implements ChannelPipeline {
     }
 
     @Override
-    public final ChannelFuture connect(
-            SocketAddress remoteAddress, SocketAddress localAddress, ChannelPromise promise) {
+    public final ChannelFuture connect(SocketAddress remoteAddress, SocketAddress localAddress, ChannelPromise promise) {
+        // 这里其实是调用的AbstractChannelHandlerContext的connect方法
         return tail.connect(remoteAddress, localAddress, promise);
     }
 
@@ -1302,8 +1309,7 @@ public class DefaultChannelPipeline implements ChannelPipeline {
         }
     }
 
-    final class HeadContext extends AbstractChannelHandlerContext
-            implements ChannelOutboundHandler, ChannelInboundHandler {
+    final class HeadContext extends AbstractChannelHandlerContext implements ChannelOutboundHandler, ChannelInboundHandler {
 
         private final Unsafe unsafe;
 
@@ -1335,10 +1341,8 @@ public class DefaultChannelPipeline implements ChannelPipeline {
         }
 
         @Override
-        public void connect(
-                ChannelHandlerContext ctx,
-                SocketAddress remoteAddress, SocketAddress localAddress,
-                ChannelPromise promise) {
+        public void connect(ChannelHandlerContext ctx, SocketAddress remoteAddress, SocketAddress localAddress, ChannelPromise promise) {
+            // 调用AbstractNioChannel的connect方法
             unsafe.connect(remoteAddress, localAddress, promise);
         }
 

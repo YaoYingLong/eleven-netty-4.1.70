@@ -19,11 +19,11 @@ import io.netty.channel.ChannelException;
 import io.netty.channel.ChannelMetadata;
 import io.netty.channel.ChannelOption;
 import io.netty.channel.ChannelOutboundBuffer;
-import io.netty.util.internal.SocketUtils;
 import io.netty.channel.nio.AbstractNioMessageChannel;
 import io.netty.channel.socket.DefaultServerSocketChannelConfig;
 import io.netty.channel.socket.ServerSocketChannelConfig;
 import io.netty.util.internal.PlatformDependent;
+import io.netty.util.internal.SocketUtils;
 import io.netty.util.internal.SuppressJava6Requirement;
 import io.netty.util.internal.logging.InternalLogger;
 import io.netty.util.internal.logging.InternalLoggerFactory;
@@ -42,6 +42,8 @@ import java.util.Map;
 /**
  * A {@link io.netty.channel.socket.ServerSocketChannel} implementation which uses
  * NIO selector based implementation to accept new connections.
+ *
+ * 异步的服务器端TCP Socket连接
  */
 public class NioServerSocketChannel extends AbstractNioMessageChannel implements io.netty.channel.socket.ServerSocketChannel {
 
@@ -59,11 +61,12 @@ public class NioServerSocketChannel extends AbstractNioMessageChannel implements
              *  {@link SelectorProvider#provider()} which is called by each ServerSocketChannel.open() otherwise.
              *
              *  See <a href="https://github.com/netty/netty/issues/2308">#2308</a>.
+             *
+             *  调用SelectorProvider的openServerSocketChannel方法创建一个在本地端口进行监听的服务Socket通道，相当于NIO中调用ServerSocketChannel.open()方法
+             *  这里最终会调用超类SelectorProviderImpl的openServerSocketChannel，返回一个ServerSocketChannelImpl
+             *      - 如果是Windows平台provider是WindowsSelectorProvider，通过openSelector产生的是WindowsSelectorImpl
+             *      - 如果是Linux平台则provider是EPollSelectorProvider，通过openSelector产生的是EPollSelectorImpl
              */
-            // 如果是Windows平台provider是WindowsSelectorProvider，通过openSelector产生的是WindowsSelectorImpl
-            // 如果是Linux平台则provider是EPollSelectorProvider，通过openSelector产生的是EPollSelectorImpl
-            // 调用SelectorProvider的openServerSocketChannel方法创建一个在本地端口进行监听的服务Socket通道，相当于NIO中调用ServerSocketChannel.open()方法
-            // 这里最终会调用超类SelectorProviderImpl的openServerSocketChannel，返回一个ServerSocketChannelImpl
             return provider.openServerSocketChannel();
         } catch (IOException e) {
             throw new ChannelException(
@@ -93,8 +96,10 @@ public class NioServerSocketChannel extends AbstractNioMessageChannel implements
 
     /**
      * Create a new instance using the given {@link ServerSocketChannel}.
-     * 需要注意的是Server端的NioServerSocketChannel的超类是AbstractNioMessageChannel
-     * Client端的NioSocketChannel的超类是AbstractNioByteChannel
+     *
+     * 需要注意的是
+     *  - Server端的NioServerSocketChannel的超类是AbstractNioMessageChannel
+     *  - Client端的NioSocketChannel的超类是AbstractNioByteChannel
      */
     public NioServerSocketChannel(ServerSocketChannel channel) {
         // 调用超类的构造方法初始化ChannelPipeline，且将NIO的ServerSocketChannel设置为非阻塞模式，且设置readInterestOp为对客户端accept连接操作感兴趣

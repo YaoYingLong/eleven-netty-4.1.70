@@ -32,6 +32,7 @@ import java.util.concurrent.ThreadFactory;
  */
 public abstract class SingleThreadEventLoop extends SingleThreadEventExecutor implements EventLoop {
 
+    // 默认为Integer.MAX_VALUE
     protected static final int DEFAULT_MAX_PENDING_TASKS = Math.max(16,
             SystemPropertyUtil.getInt("io.netty.eventLoop.maxPendingTasks", Integer.MAX_VALUE));
 
@@ -100,7 +101,8 @@ public abstract class SingleThreadEventLoop extends SingleThreadEventExecutor im
          *  - 服务端：的具体实现类是AbstractNioMessageChannel，最终会返回NioMessageUnsafe
          *  - 客户端：的具体实现类是AbstractNioByteChannel，最终会返回NioByteUnsafe
          *
-         * 然后调用超类AbstractUnsafe的register方法，这里this就是NioEventLoop
+         * 然后调用超类AbstractUnsafe的register方法，这里this就是NioEventLoop，将promise中持有的channel注册到Selector上，
+         * 相当于NIO中调用ServerSocketChannel或SocketChannel的register方法，生成具体的SelectionKey
          */
         promise.channel().unsafe().register(this, promise);
         return promise;

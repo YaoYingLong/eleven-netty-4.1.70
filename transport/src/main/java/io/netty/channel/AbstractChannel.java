@@ -74,7 +74,7 @@ public abstract class AbstractChannel extends DefaultAttributeMap implements Cha
         /**
          * 这里的newUnsafe是一个抽象方法，对针对服务端和客户端有不同的实现
          * 服务端：的具体实现类是AbstractNioMessageChannel，最终会返回NioMessageUnsafe
-         * 客户端：的具体实现类是AbstractNioByteChannel，最终会返回NioByteUnsafe
+         * 客户端：的具体实现类是AbstractNioByteChannel，最终会返回NioSocketChannelUnsafe即NioByteUnsafe
          */
         unsafe = newUnsafe();
         // new一个DefaultChannelPipeline
@@ -278,6 +278,7 @@ public abstract class AbstractChannel extends DefaultAttributeMap implements Cha
 
     @Override
     public ChannelFuture connect(SocketAddress remoteAddress, SocketAddress localAddress, ChannelPromise promise) {
+        // 这里会调用DefaultChannelPipeline的connect方法
         return pipeline.connect(remoteAddress, localAddress, promise);
     }
 

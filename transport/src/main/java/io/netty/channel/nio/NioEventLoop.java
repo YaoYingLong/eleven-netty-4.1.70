@@ -54,6 +54,10 @@ import java.util.concurrent.atomic.AtomicLong;
  * {@link Selector} and so does the multi-plexing of these in the event loop.
  *
  * NioEventLoop是实现的SingleThreadEventLoop，它将Channel注册到Selector并在事件循环中对它们进行多路复用
+ *
+ * NioEventLoop中维护了一个线程和任务队列，支持异步提交执行任务，线程启动时会调用NioEventLoop的run方法，执行I/O任务和非I/O任务
+ *  - I/O任务即SelectionKey中ready的事件如accept、connect、read、write等，由processSelectedKeys方法触发
+ *  - 非IO任务添加到taskQueue中的任务，如register0、bind0 等任务，由runAllTasks方法触发。
  */
 public final class NioEventLoop extends SingleThreadEventLoop {
 
@@ -61,16 +65,18 @@ public final class NioEventLoop extends SingleThreadEventLoop {
 
     private static final int CLEANUP_INTERVAL = 256; // XXX Hard-coded value, but won't need customization.
 
-    // 默认为false
-    private static final boolean DISABLE_KEY_SET_OPTIMIZATION =
-            SystemPropertyUtil.getBoolean("io.netty.noKeySetOptimization", false);
+    // 环境变量中io.netty.noKeySetOptimization: 未设置，默认为false
+    private static final boolean DISABLE_KEY_SET_OPTIMIZATION = SystemPropertyUtil.getBoolean("io.netty.noKeySetOptimization", false);
 
     private static final int MIN_PREMATURE_SELECTOR_RETURNS = 3;
+    // 环境变量中io.netty.selectorAutoRebuildThreshold
     private static final int SELECTOR_AUTO_REBUILD_THRESHOLD;
 
     private final IntSupplier selectNowSupplier = new IntSupplier() {
         @Override
         public int get() throws Exception {
+            // selectNow会立即返回，不会阻塞当前线程。如果当前没有任何通道准备好进行读写操作，它会立即返回0，表示没有通道就绪
+            // 与的select方法的区别是，select会阻塞当前线程，直到至少有一个通道就绪或者线程被中断。如果有多个通道就绪，它会返回就绪通道的数量
             return selectNow();
         }
     };
@@ -127,7 +133,11 @@ public final class NioEventLoop extends SingleThreadEventLoop {
     //    NONE             when EL is waiting with no wakeup scheduled
     //    other value T    when EL is waiting with wakeup scheduled at time T
     private final AtomicLong nextWakeupNanos = new AtomicLong(AWAKE);
-
+    /**
+     * 默认为DefaultSelectStrategy，calculateStrategy判断队列是否为空
+     *  - 非空：调用Selector的selectNow方法，立即返回当前通道准备好进行读写操作的数量，返回0表示没有通道就绪
+     *  - 为空：返回SelectStrategy.SELECT
+     */
     private final SelectStrategy selectStrategy;
 
     private volatile int ioRatio = 50;
@@ -442,6 +452,11 @@ public final class NioEventLoop extends SingleThreadEventLoop {
             try {
                 int strategy;
                 try {
+                    /**
+                     * 判断队列是否为空
+                     *  - 非空：调用Selector的selectNow方法，立即返回当前通道准备好进行读写操作的数量，返回0表示没有通道就绪
+                     *  - 为空：返回SelectStrategy.SELECT
+                     */
                     strategy = selectStrategy.calculateStrategy(selectNowSupplier, hasTasks());
                     switch (strategy) {
                     case SelectStrategy.CONTINUE:
@@ -457,7 +472,8 @@ public final class NioEventLoop extends SingleThreadEventLoop {
                         }
                         nextWakeupNanos.set(curDeadlineNanos);
                         try {
-                            if (!hasTasks()) {   // 监听IO事件
+                            if (!hasTasks()) {
+                                // 再次检查如果队列还是没有任务，则会通过调用Selector的select方法阻塞一定的时间
                                 strategy = select(curDeadlineNanos);
                             }
                         } finally {
@@ -484,7 +500,7 @@ public final class NioEventLoop extends SingleThreadEventLoop {
                 boolean ranTasks;
                 if (ioRatio == 100) {
                     try {
-                        if (strategy > 0) {
+                        if (strategy > 0) { // strategy大于0，说明有需要处理的事件发生
                             // 当有事件需要处理时调用NioEventLoop的processSelectedKeys方法
                             processSelectedKeys();
                         }
@@ -492,9 +508,10 @@ public final class NioEventLoop extends SingleThreadEventLoop {
                         // Ensure we always run tasks.
                         ranTasks = runAllTasks();
                     }
-                } else if (strategy > 0) {
+                } else if (strategy > 0) { // strategy大于0，说明有需要处理的事件发生
                     final long ioStartTime = System.nanoTime();
                     try {
+                        // 当有事件需要处理时调用NioEventLoop的processSelectedKeys方法
                         processSelectedKeys();
                     } finally {
                         // Ensure we always run tasks.
@@ -810,6 +827,8 @@ public final class NioEventLoop extends SingleThreadEventLoop {
     }
 
     int selectNow() throws IOException {
+        // selectNow会立即返回，不会阻塞当前线程。如果当前没有任何通道准备好进行读写操作，它会立即返回0，表示没有通道就绪
+        // 与的select方法的区别是，select会阻塞当前线程，直到至少有一个通道就绪或者线程被中断。如果有多个通道就绪，它会返回就绪通道的数量
         return selector.selectNow();
     }
 

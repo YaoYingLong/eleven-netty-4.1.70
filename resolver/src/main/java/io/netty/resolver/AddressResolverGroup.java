@@ -40,8 +40,7 @@ public abstract class AddressResolverGroup<T extends SocketAddress> implements C
     /**
      * Note that we do not use a {@link ConcurrentMap} here because it is usually expensive to instantiate a resolver.
      */
-    private final Map<EventExecutor, AddressResolver<T>> resolvers =
-            new IdentityHashMap<EventExecutor, AddressResolver<T>>();
+    private final Map<EventExecutor, AddressResolver<T>> resolvers = new IdentityHashMap<EventExecutor, AddressResolver<T>>();
 
     private final Map<EventExecutor, GenericFutureListener<Future<Object>>> executorTerminationListeners =
             new IdentityHashMap<EventExecutor, GenericFutureListener<Future<Object>>>();
@@ -67,6 +66,7 @@ public abstract class AddressResolverGroup<T extends SocketAddress> implements C
             if (r == null) {
                 final AddressResolver<T> newResolver;
                 try {
+                    // 调用DefaultAddressResolverGroup的newResolver
                     newResolver = newResolver(executor);
                 } catch (Exception e) {
                     throw new IllegalStateException("failed to create a new resolver", e);

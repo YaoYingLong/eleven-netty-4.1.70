@@ -59,15 +59,19 @@ public abstract class AbstractBootstrap<B extends AbstractBootstrap<B, C>, C ext
     // 若是服务端：该EventLoopGroup是通过bootstrap.group(bossGroup, workerGroup)传入的bossGroup，用于处理连接事件的
     // 如果是客户端：则该EventLoopGroup则是通过bootstrap.group(group)设置的线程组
     volatile EventLoopGroup group;
+    // channelFactory是ReflectiveChannelFactory，最终会调用其newChannel方法通过反射的方式调用NioServerSocketChannel或NioSocketChannel的构造方法实例化
     @SuppressWarnings("deprecation")
     private volatile ChannelFactory<? extends C> channelFactory;
     private volatile SocketAddress localAddress;
 
-    // The order in which ChannelOptions are applied is important they may depend on each other for validation
-    // purposes.
+    // The order in which ChannelOptions are applied is important they may depend on each other for validation purposes.
     private final Map<ChannelOption<?>, Object> options = new LinkedHashMap<ChannelOption<?>, Object>();
     private final Map<AttributeKey<?>, Object> attrs = new ConcurrentHashMap<AttributeKey<?>, Object>();
-    // 不管是Bootstrap还是ServerBootstrap，其调用的handler方法设置的ChannelInitializer最终会赋值给handler
+    /**
+     * 不管是Bootstrap还是ServerBootstrap，其调用的handler方法设置的ChannelInitializer最终会赋值给handler
+     *
+     * 如果是ServerBootstrap，则通过调用handler方法设置的ChannelInitializer，最终会应用于bossGroup
+     */
     private volatile ChannelHandler handler;
 
     AbstractBootstrap() {
@@ -328,13 +332,21 @@ public abstract class AbstractBootstrap<B extends AbstractBootstrap<B, C>, C ext
              * 通过调用ReflectiveChannelFactory的newChannel方法，通过反射的方式调用NioServerSocketChannel或NioSocketChannel构造方法
              * NioServerSocketChannel或NioSocketChannel构造方法中
              *  - 会调用其超类的构造方法初始化ChannelPipeline
-             *  - 将NIO的ServerSocketChannel设置为非阻塞模式
+             *  - 将NIO的ServerSocketChannel或SocketChannel设置为非阻塞模式
              *  - 设置readInterestOp为对客户端accept连接操作感兴趣
              *  - 在AbstractChannel超类的构造方法中中会初始化DefaultChannelPipeline
              */
             channel = channelFactory.newChannel();
-            // 这里的init方法若是服务端则是ServerBootstrap提供，若是客户端则是Bootstrap提供的
-            // 给NioServerSocketChannel或NioSocketChannel设置options参数，将用户自定义的ChannelPipeline封装成ServerBootstrapAcceptor添加到ChannelPipeline
+            /**
+             * 这里的init方法若是服务端则是ServerBootstrap提供，若是客户端则是Bootstrap提供的
+             *  - 给NioServerSocketChannel或NioSocketChannel设置options参数
+             *  - ServerBootstrap
+             *      - 将用户自定义的ChannelPipeline封装成ServerBootstrapAcceptor添加到ChannelPipeline
+             *      作用是将原本通过bossGroup处理的channel转到workGroup中处理读写事件
+             *
+             *  - Bootstrap
+             *      -将用户自定义调用Bootstrap的handler方法添加进来的ChannelInitializer添加到ChannelPipeline
+             */
             init(channel);
         } catch (Throwable t) {
             if (channel != null) {

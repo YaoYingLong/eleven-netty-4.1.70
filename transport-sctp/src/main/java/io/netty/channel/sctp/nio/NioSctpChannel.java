@@ -58,6 +58,8 @@ import java.util.Set;
  *
  * Be aware that not all operations systems support SCTP. Please refer to the documentation of your operation system,
  * to understand what you need to do to use it. Also this feature is only supported on Java 7+.
+ *
+ * 异步的客户端Sctp连接
  */
 public class NioSctpChannel extends AbstractNioMessageChannel implements io.netty.channel.sctp.SctpChannel {
     private static final ChannelMetadata METADATA = new ChannelMetadata(false);

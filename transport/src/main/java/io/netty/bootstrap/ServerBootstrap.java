@@ -53,6 +53,7 @@ public class ServerBootstrap extends AbstractBootstrap<ServerBootstrap, ServerCh
     private final ServerBootstrapConfig config = new ServerBootstrapConfig(this);
     // 该EventLoopGroup是通过bootstrap.group(bossGroup, workerGroup)传入的workerGroup，用于处理读写事件的
     private volatile EventLoopGroup childGroup;
+    // 对workerGroup的SocketChannel设置处理器
     private volatile ChannelHandler childHandler;
 
     public ServerBootstrap() { }

@@ -52,8 +52,7 @@ public class Bootstrap extends AbstractBootstrap<Bootstrap, Channel> {
     private final BootstrapConfig config = new BootstrapConfig(this);
 
     @SuppressWarnings("unchecked")
-    private volatile AddressResolverGroup<SocketAddress> resolver =
-            (AddressResolverGroup<SocketAddress>) DEFAULT_RESOLVER;
+    private volatile AddressResolverGroup<SocketAddress> resolver = (AddressResolverGroup<SocketAddress>) DEFAULT_RESOLVER;
     private volatile SocketAddress remoteAddress;
 
     public Bootstrap() { }
@@ -118,6 +117,8 @@ public class Bootstrap extends AbstractBootstrap<Bootstrap, Channel> {
 
     /**
      * Connect a {@link Channel} to the remote peer.
+     *
+     * 例子：bootstrap.connect("127.0.0.1", 9000)
      */
     public ChannelFuture connect(String inetHost, int inetPort) {
         return connect(InetSocketAddress.createUnresolved(inetHost, inetPort));
@@ -152,6 +153,17 @@ public class Bootstrap extends AbstractBootstrap<Bootstrap, Channel> {
      * @see #connect()
      */
     private ChannelFuture doResolveAndConnect(final SocketAddress remoteAddress, final SocketAddress localAddress) {
+        /**
+         * 1、通过调用ReflectiveChannelFactory的newChannel方法，通过反射的方式调用NioSocketChannel的构造方法实例化Channel
+         *  - 调用SelectorProvider的openSocketChannel方法生成SocketChannel，并持有该SocketChannel
+         *  - 会调用其超类的构造方法初始化ChannelPipeline
+         *  - 将SocketChannel感兴趣的事件设置为OP_READ
+         *  - 通过SocketChannel.configureBlocking(false)将SocketChannel设置为非阻塞模式
+         *
+         * 2、给NioSocketChannel设置options参数
+         * 3、将用户自定义调用Bootstrap的handler方法添加进来的ChannelInitializer添加到ChannelPipeline
+         * 4、调用MultithreadEventLoopGroup的register方法，将NioSocketChannel注册到BossGroup中的一个NioEventLoop线程的Selector上
+         */
         final ChannelFuture regFuture = initAndRegister();
         final Channel channel = regFuture.channel();
 
@@ -177,6 +189,7 @@ public class Bootstrap extends AbstractBootstrap<Bootstrap, Channel> {
                         // Registration was successful, so set the correct executor to use.
                         // See https://github.com/netty/netty/issues/2586
                         promise.registered();
+                        // 这里会真正调用SocketChannel的connect方法，连接到服务端
                         doResolveAndConnect0(channel, remoteAddress, localAddress, promise);
                     }
                 }
@@ -191,6 +204,7 @@ public class Bootstrap extends AbstractBootstrap<Bootstrap, Channel> {
             final EventLoop eventLoop = channel.eventLoop();
             AddressResolver<SocketAddress> resolver;
             try {
+                // AddressResolverGroup<SocketAddress>即resolver默认为DefaultAddressResolverGroup
                 resolver = this.resolver.getResolver(eventLoop);
             } catch (Throwable cause) {
                 channel.close();
@@ -237,9 +251,7 @@ public class Bootstrap extends AbstractBootstrap<Bootstrap, Channel> {
         return promise;
     }
 
-    private static void doConnect(
-            final SocketAddress remoteAddress, final SocketAddress localAddress, final ChannelPromise connectPromise) {
-
+    private static void doConnect(final SocketAddress remoteAddress, final SocketAddress localAddress, final ChannelPromise connectPromise) {
         // This method is invoked before channelRegistered() is triggered.  Give user handlers a chance to set up
         // the pipeline in its channelRegistered() implementation.
         final Channel channel = connectPromise.channel();

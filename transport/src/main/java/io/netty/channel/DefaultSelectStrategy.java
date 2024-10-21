@@ -27,6 +27,11 @@ final class DefaultSelectStrategy implements SelectStrategy {
 
     @Override
     public int calculateStrategy(IntSupplier selectSupplier, boolean hasTasks) throws Exception {
+        /**
+         * 判断队列是否为空
+         *  - 非空：调用Selector的selectNow方法，立即返回当前通道准备好进行读写操作的数量，返回0表示没有通道就绪
+         *  - 为空：返回SelectStrategy.SELECT
+         */
         return hasTasks ? selectSupplier.get() : SelectStrategy.SELECT;
     }
 }

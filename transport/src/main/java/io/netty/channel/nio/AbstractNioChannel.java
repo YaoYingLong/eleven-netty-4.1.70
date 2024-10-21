@@ -55,6 +55,7 @@ public abstract class AbstractNioChannel extends AbstractChannel {
     private final SelectableChannel ch;
     // readInterestOp是在调用NioServerSocketChannel的构造方法时传入的SelectionKey.OP_ACCEPT
     protected final int readInterestOp;
+    // 在执行doRegister方法时被初始化
     volatile SelectionKey selectionKey;
     boolean readPending;
     private final Runnable clearReadPendingRunnable = new Runnable() {
@@ -89,7 +90,7 @@ public abstract class AbstractNioChannel extends AbstractChannel {
         this.ch = ch;
         this.readInterestOp = readInterestOp;
         try {
-            // 将NIO的ServerSocketChannel设置为非阻塞模式
+            // 将NIO的ServerSocketChannel或SocketChannel设置为非阻塞模式
             ch.configureBlocking(false);
         } catch (IOException e) {
             try {
@@ -257,6 +258,7 @@ public abstract class AbstractNioChannel extends AbstractChannel {
                 }
 
                 boolean wasActive = isActive();
+                // 最终调用NioSocketChannel的doConnect方法
                 if (doConnect(remoteAddress, localAddress)) {
                     fulfillConnectPromise(promise, wasActive);
                 } else {

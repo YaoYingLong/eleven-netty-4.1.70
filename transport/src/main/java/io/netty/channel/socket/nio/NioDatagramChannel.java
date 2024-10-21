@@ -60,9 +60,10 @@ import java.util.Map;
  *
  * @see AddressedEnvelope
  * @see DatagramPacket
+ *
+ * 异步的UDP连接
  */
-public final class NioDatagramChannel
-        extends AbstractNioMessageChannel implements io.netty.channel.socket.DatagramChannel {
+public final class NioDatagramChannel extends AbstractNioMessageChannel implements io.netty.channel.socket.DatagramChannel {
 
     private static final ChannelMetadata METADATA = new ChannelMetadata(true);
     private static final SelectorProvider DEFAULT_SELECTOR_PROVIDER = SelectorProvider.provider();
