@@ -365,6 +365,7 @@ public abstract class AbstractBootstrap<B extends AbstractBootstrap<B, C>, C ext
          *
          * 客户端：通过调用Bootstrap的config方法，然后调用group获取到group，本质是一个MultithreadEventLoopGroup
          *  - 调用MultithreadEventLoopGroup的register方法，将NioSocketChannel注册到BossGroup中的一个NioEventLoop线程的Selector上
+         *  - 这里最终会通过eventLoop.execute将register0任务提交到eventLoop线程池中执行，这里同时开启了NioEventLoop的run方法
          */
         ChannelFuture regFuture = config().group().register(channel);
         if (regFuture.cause() != null) {

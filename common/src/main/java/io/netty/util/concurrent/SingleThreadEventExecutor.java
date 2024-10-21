@@ -820,6 +820,11 @@ public abstract class SingleThreadEventExecutor extends AbstractScheduledEventEx
         execute(ObjectUtil.checkNotNull(task, "task"), false);
     }
 
+    /**
+     *
+     * @param task
+     * @param immediate 默认为true
+     */
     private void execute(Runnable task, boolean immediate) {
         boolean inEventLoop = inEventLoop();
         // 将任务添加到队列taskQueue队列中

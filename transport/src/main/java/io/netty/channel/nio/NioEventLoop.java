@@ -445,6 +445,12 @@ public final class NioEventLoop extends SingleThreadEventLoop {
         }
     }
 
+    /**
+     * 对于客户端，在调用Bootstrap的initAndRegister方法时，完成了NioSocketChannel的实例化后，以及完成Bootstrap的init方法的执行
+     * 将调用Bootstrap的handler方法添加进来的ChannelInitializer添加到NioSocketChannel中的ChannelPipeline
+     * 然后会调用bootstrap.group()获取到具体的NioEventLoopGroup，然后调用其register方法时，
+     * 最终会通过eventLoop.execute将register0任务提交到eventLoop线程池中执行，这里同时开启了NioEventLoop的run方法
+     */
     @Override
     protected void run() {
         int selectCnt = 0;
@@ -519,6 +525,7 @@ public final class NioEventLoop extends SingleThreadEventLoop {
                         ranTasks = runAllTasks(ioTime * (100 - ioRatio) / ioRatio);
                     }
                 } else {
+                    // 非IO任务添加到taskQueue中的任务，如register0、bind0 等任务，由runAllTasks方法触发
                     ranTasks = runAllTasks(0); // This will run the minimum number of tasks
                 }
 
