@@ -79,6 +79,7 @@ final class ChannelHandlerMask {
         Map<Class<? extends ChannelHandler>, Integer> cache = MASKS.get();
         Integer mask = cache.get(clazz);
         if (mask == null) {
+            // 通过判断类是否实现了ChannelInboundHandler或ChannelOutboundHandler接口，以及是否有实现其具体的方法，从而获取标记
             mask = mask0(clazz);
             cache.put(clazz, mask);
         }
@@ -93,7 +94,6 @@ final class ChannelHandlerMask {
         try {
             if (ChannelInboundHandler.class.isAssignableFrom(handlerType)) {
                 mask |= MASK_ALL_INBOUND;
-
                 if (isSkippable(handlerType, "channelRegistered", ChannelHandlerContext.class)) {
                     mask &= ~MASK_CHANNEL_REGISTERED;
                 }
@@ -122,9 +122,7 @@ final class ChannelHandlerMask {
 
             if (ChannelOutboundHandler.class.isAssignableFrom(handlerType)) {
                 mask |= MASK_ALL_OUTBOUND;
-
-                if (isSkippable(handlerType, "bind", ChannelHandlerContext.class,
-                        SocketAddress.class, ChannelPromise.class)) {
+                if (isSkippable(handlerType, "bind", ChannelHandlerContext.class, SocketAddress.class, ChannelPromise.class)) {
                     mask &= ~MASK_BIND;
                 }
                 if (isSkippable(handlerType, "connect", ChannelHandlerContext.class, SocketAddress.class,
@@ -151,7 +149,6 @@ final class ChannelHandlerMask {
                     mask &= ~MASK_FLUSH;
                 }
             }
-
             if (isSkippable(handlerType, "exceptionCaught", ChannelHandlerContext.class, Throwable.class)) {
                 mask &= ~MASK_EXCEPTION_CAUGHT;
             }

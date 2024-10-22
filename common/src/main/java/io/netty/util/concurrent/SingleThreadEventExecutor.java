@@ -821,16 +821,17 @@ public abstract class SingleThreadEventExecutor extends AbstractScheduledEventEx
     }
 
     /**
+     * 其实首次调用启动是通过：AbstractChannel$AbstractUnsafe的register()
      *
      * @param task
      * @param immediate 默认为true
      */
     private void execute(Runnable task, boolean immediate) {
         boolean inEventLoop = inEventLoop();
-        // 将任务添加到队列taskQueue队列中
+        // 将任务添加到队列taskQueue阻塞队列中
         addTask(task);
         if (!inEventLoop) {
-            // 最终调用SingleThreadEventExecutor的子类NioEventLoop的run方法
+            // 启动EventLoop：最终调用SingleThreadEventExecutor的子类NioEventLoop的run方法
             startThread();
             if (isShutdown()) {
                 boolean reject = false;

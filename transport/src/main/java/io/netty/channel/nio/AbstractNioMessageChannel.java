@@ -63,12 +63,17 @@ public abstract class AbstractNioMessageChannel extends AbstractNioChannel {
 
         private final List<Object> readBuf = new ArrayList<Object>();
 
+        /**
+         * 该方法的调用时机是在NioEventLoop的processSelectedKey中被调用
+         */
         @Override
         public void read() {
             assert eventLoop().inEventLoop();
             final ChannelConfig config = config();
             final ChannelPipeline pipeline = pipeline();
+            // 容量计算器
             final RecvByteBufAllocator.Handle allocHandle = unsafe().recvBufAllocHandle();
+            // 重置，把之前计数的值全部清空
             allocHandle.reset(config);
 
             boolean closed = false;
@@ -76,7 +81,11 @@ public abstract class AbstractNioMessageChannel extends AbstractNioChannel {
             try {
                 try {
                     do {
-                        // 调用子类NioServerSocketChannel的doReadMessages方法
+                        /**
+                         * 调用子类NioServerSocketChannel的doReadMessages方法
+                         * 调用serverSocketChannel.accept()获取客户端新连接的SocketChannel对象
+                         * 将SocketChannel包装为NioSocketChannel，且初始化ChannelPipeline将阻塞模式设置为非阻塞
+                         */
                         int localRead = doReadMessages(readBuf);
                         if (localRead == 0) {
                             break;
@@ -85,7 +94,6 @@ public abstract class AbstractNioMessageChannel extends AbstractNioChannel {
                             closed = true;
                             break;
                         }
-
                         allocHandle.incMessagesRead(localRead);
                     } while (continueReading(allocHandle));
                 } catch (Throwable t) {
@@ -96,16 +104,21 @@ public abstract class AbstractNioMessageChannel extends AbstractNioChannel {
                 int size = readBuf.size();
                 for (int i = 0; i < size; i ++) {
                     readPending = false;
-                    // 调用ServerBootstrapAcceptor的channelRead方法
+                    /**
+                     * 从pipeline的head头节点开始遍历执行链表中ChannelInboundHandler的channelRead方法，其实是调用的ServerBootstrapAcceptor的channelRead方法
+                     * 若发生异常会调用对应的ChannelInboundHandler的exceptionCaught方法
+                     */
                     pipeline.fireChannelRead(readBuf.get(i));
                 }
                 readBuf.clear();
+                // 读取完成后调用readComplete，重新估算内存分配容量
                 allocHandle.readComplete();
+                // 从pipeline的head头节点开始遍历执行链表中ChannelInboundHandler的channelReadComplete方法
                 pipeline.fireChannelReadComplete();
 
                 if (exception != null) {
                     closed = closeOnReadError(exception);
-
+                    // 从pipeline的head头节点开始遍历执行链表中ChannelInboundHandler的exceptionCaught方法
                     pipeline.fireExceptionCaught(exception);
                 }
 

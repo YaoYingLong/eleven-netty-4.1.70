@@ -98,11 +98,16 @@ public abstract class AbstractNioByteChannel extends AbstractNioChannel {
     protected class NioByteUnsafe extends AbstractNioUnsafe {
 
         private void closeOnRead(ChannelPipeline pipeline) {
+            // 底层输入流未关闭
             if (!isInputShutdown0()) {
+                // 是否允许办关闭
                 if (isAllowHalfClosure(config())) {
+                    // 关闭输入流
                     shutdownInput();
+                    // 从pipeline的head头节点开始遍历执行链表中ChannelInboundHandler的userEventTriggered方法
                     pipeline.fireUserEventTriggered(ChannelInputShutdownEvent.INSTANCE);
                 } else {
+                    //关闭socket
                     close(voidPromise());
                 }
             } else {
@@ -114,20 +119,34 @@ public abstract class AbstractNioByteChannel extends AbstractNioChannel {
         private void handleReadException(ChannelPipeline pipeline, ByteBuf byteBuf, Throwable cause, boolean close,
                 RecvByteBufAllocator.Handle allocHandle) {
             if (byteBuf != null) {
+                // 如果byteBuf有数据，则交给管道处理
                 if (byteBuf.isReadable()) {
                     readPending = false;
+                    /**
+                     * 从pipeline的head头节点开始遍历执行链表中ChannelInboundHandler的channelRead方法
+                     * 若发生异常会调用对应的ChannelInboundHandler的exceptionCaught方法
+                     */
                     pipeline.fireChannelRead(byteBuf);
                 } else {
+                    // 释放资源
                     byteBuf.release();
                 }
             }
+            // 容量计算机更新guess大小
             allocHandle.readComplete();
+            /**
+             * 从pipeline的head头节点开始遍历执行链表中ChannelInboundHandler的channelReadComplete方法
+             */
             pipeline.fireChannelReadComplete();
+            /**
+             * 从pipeline的head头节点开始遍历执行链表中ChannelInboundHandler的exceptionCaught方法
+             */
             pipeline.fireExceptionCaught(cause);
 
             // If oom will close the read event, release connection.
             // See https://github.com/netty/netty/issues/10434
             if (close || cause instanceof OutOfMemoryError || cause instanceof IOException) {
+                // 从pipeline的head头节点开始遍历执行链表中ChannelInboundHandler的userEventTriggered方法
                 closeOnRead(pipeline);
             }
         }
@@ -140,20 +159,28 @@ public abstract class AbstractNioByteChannel extends AbstractNioChannel {
                 return;
             }
             final ChannelPipeline pipeline = pipeline();
+            // ByteBuf分配器
             final ByteBufAllocator allocator = config.getAllocator();
+            // 容量计算器
             final RecvByteBufAllocator.Handle allocHandle = recvBufAllocHandle();
+            // 重置，把之前计数的值全部清空
             allocHandle.reset(config);
 
             ByteBuf byteBuf = null;
             boolean close = false;
             try {
                 do {
+                    // 分配内存，关键在于计算分配内存的大小
                     byteBuf = allocHandle.allocate(allocator);
+                    // doReadBytes从socket读取字节到byteBuf，返回真实读取数量，更新容量计算器
                     allocHandle.lastBytesRead(doReadBytes(byteBuf));
+                    // 如果小于0 则socket关闭，如果等于0则没读取到数据
                     if (allocHandle.lastBytesRead() <= 0) {
                         // nothing was read. release the buffer.
+                        // 释放资源
                         byteBuf.release();
                         byteBuf = null;
+                        // 如果小于0则意味着socket关闭
                         close = allocHandle.lastBytesRead() < 0;
                         if (close) {
                             // There is nothing left to read as we received an EOF.
@@ -162,18 +189,26 @@ public abstract class AbstractNioByteChannel extends AbstractNioChannel {
                         break;
                     }
 
+                    // 增加循环计数
                     allocHandle.incMessagesRead(1);
                     readPending = false;
-                    // 调用SocketChannel中pipeline中所有hander的channelRead方法
+                    /**
+                     * 从pipeline的head头节点开始遍历执行链表中ChannelInboundHandler的channelRead方法
+                     * 若发生异常会调用对应的ChannelInboundHandler的exceptionCaught方法
+                     */
                     pipeline.fireChannelRead(byteBuf);
                     byteBuf = null;
+                    // 判断是否继续从socket读取数据
                 } while (allocHandle.continueReading());
 
+                // 读取完成后调用readComplete，重新估算内存分配容量
                 allocHandle.readComplete();
-                // 调用SocketChannel中pipeline中所有hander的channelReadComplete方法
+                // 从pipeline的head头节点开始遍历执行链表中ChannelInboundHandler的channelReadComplete方法
                 pipeline.fireChannelReadComplete();
 
+                // 在读取中遇到异常，或者返回EOF（-1），说明底层通道关闭，需要处理关闭逻辑
                 if (close) {
+                    // 从pipeline的head头节点开始遍历执行链表中ChannelInboundHandler的userEventTriggered方法
                     closeOnRead(pipeline);
                 }
             } catch (Throwable t) {
@@ -185,6 +220,7 @@ public abstract class AbstractNioByteChannel extends AbstractNioChannel {
                 // * The user called Channel.read() or ChannelHandlerContext.read() in channelReadComplete(...) method
                 //
                 // See https://github.com/netty/netty/issues/2254
+                // 根据情况移除OP_READ事件
                 if (!readPending && !config.isAutoRead()) {
                     removeReadOp();
                 }

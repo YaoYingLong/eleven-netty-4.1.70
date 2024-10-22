@@ -257,6 +257,8 @@ public abstract class AbstractBootstrap<B extends AbstractBootstrap<B, C>, C ext
 
     /**
      * Create a new {@link Channel} and bind it.
+     *
+     * 调用ServerBootstrap的bind方法最终调用超类AbstractBootstrap的bind
      */
     public ChannelFuture bind(String inetHost, int inetPort) {
         return bind(SocketUtils.socketAddress(inetHost, inetPort));
@@ -264,6 +266,8 @@ public abstract class AbstractBootstrap<B extends AbstractBootstrap<B, C>, C ext
 
     /**
      * Create a new {@link Channel} and bind it.
+     *
+     * 调用ServerBootstrap的bind方法最终调用超类AbstractBootstrap的bind
      */
     public ChannelFuture bind(InetAddress inetHost, int inetPort) {
         return bind(new InetSocketAddress(inetHost, inetPort));
@@ -271,6 +275,8 @@ public abstract class AbstractBootstrap<B extends AbstractBootstrap<B, C>, C ext
 
     /**
      * Create a new {@link Channel} and bind it.
+     *
+     * 调用ServerBootstrap的bind方法最终调用超类AbstractBootstrap的bind
      */
     public ChannelFuture bind(SocketAddress localAddress) {
         validate();
@@ -390,12 +396,15 @@ public abstract class AbstractBootstrap<B extends AbstractBootstrap<B, C>, C ext
 
     abstract void init(Channel channel) throws Exception;
 
-    private static void doBind0(
-            final ChannelFuture regFuture, final Channel channel,
+    private static void doBind0(final ChannelFuture regFuture, final Channel channel,
             final SocketAddress localAddress, final ChannelPromise promise) {
 
         // This method is invoked before channelRegistered() is triggered.  Give user handlers a chance to set up
         // the pipeline in its channelRegistered() implementation.
+        /**
+         * 该方法是通过ServerBootstrap的bind方法从而调用过来的，这里的执行NioEventLoop的execute方法会调用超类SingleThreadEventExecutor的
+         * execute方法，首先将task添加到阻塞队列中，然后调用SingleThreadEventExecutor.this.run()，启动NioEventLoop线程
+         */
         channel.eventLoop().execute(new Runnable() {
             @Override
             public void run() {

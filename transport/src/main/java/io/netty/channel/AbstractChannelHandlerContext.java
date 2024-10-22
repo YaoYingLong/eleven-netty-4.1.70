@@ -114,7 +114,8 @@ abstract class AbstractChannelHandlerContext implements ChannelHandlerContext, R
         this.name = ObjectUtil.checkNotNull(name, "name");
         this.pipeline = pipeline;
         this.executor = executor;
-        // 调用 ChannelHandlerMask.mask(handlerClass) 方法，获取执行标记
+        // 调用ChannelHandlerMask.mask(handlerClass)方法，获取执行标记，其实就是判断类
+        // 通过判断类是否实现了ChannelInboundHandler或ChannelOutboundHandler接口，以及是否有实现其具体的方法，从而获取标记
         this.executionMask = mask(handlerClass);
         // Its ordered if its driven by the EventLoop or the given Executor is an instanceof OrderedEventExecutor.
         // 表示上下文的事件执行器是不是有序的，即以有序/串行的方式处理所有提交的任务
@@ -550,19 +551,27 @@ abstract class AbstractChannelHandlerContext implements ChannelHandlerContext, R
 
     @Override
     public ChannelFuture connect(SocketAddress remoteAddress, ChannelPromise promise) {
+        // 当前的AbstractChannelHandlerContext其实是TailContext是一个ChannelInboundHandler
         return connect(remoteAddress, null, promise);
     }
 
     @Override
     public ChannelFuture connect(final SocketAddress remoteAddress, final SocketAddress localAddress, final ChannelPromise promise) {
         ObjectUtil.checkNotNull(remoteAddress, "remoteAddress");
-
+        // 当前的AbstractChannelHandlerContext其实是TailContext是一个ChannelInboundHandler
         if (isNotValidPromise(promise, false)) {
             // cancelled
             return promise;
         }
 
-        // 这里获取到的是DefaultChannelHandlerContext
+        /**
+         * 这里获取到的是DefaultChannelHandlerContext，当前的AbstractChannelHandlerContext其实是TailContext是一个ChannelInboundHandler
+         * 在实例化具体的AbstractChannelHandlerContext时其构造方法中会调用ChannelHandlerMask.mask(handlerClass)方法，获取执行标记
+         * 通过判断类是否实现了ChannelInboundHandler或ChannelOutboundHandler接口，以及是否有实现其具体的方法，从而获取标记
+         *
+         * TailContext是一个ChannelInboundHandler，但MASK_CONNECT标记是在ChannelOutboundHandler中的connect方法的标记
+         * 所以最终这里返回的是HeadContext，所以最终会调用HeadContext的connect方法
+         */
         final AbstractChannelHandlerContext next = findContextOutbound(MASK_CONNECT);
         EventExecutor executor = next.executor();
         if (executor.inEventLoop()) {

@@ -69,12 +69,14 @@ public abstract class AbstractChannel extends DefaultAttributeMap implements Cha
      *        the parent of this channel. {@code null} if there's no parent.
      */
     protected AbstractChannel(Channel parent) {
+        // 属性值默认为null
         this.parent = parent;
+        // 每个Channel都会被分配一个唯一的id
         id = newId();
         /**
          * 这里的newUnsafe是一个抽象方法，对针对服务端和客户端有不同的实现
-         * 服务端：的具体实现类是AbstractNioMessageChannel，最终会返回NioMessageUnsafe
-         * 客户端：的具体实现类是AbstractNioByteChannel，最终会返回NioSocketChannelUnsafe即NioByteUnsafe
+         *  - 服务端：的具体实现类是AbstractNioMessageChannel，最终会返回NioMessageUnsafe
+         *  - 客户端：的具体实现类是AbstractNioByteChannel，最终会返回NioSocketChannelUnsafe即NioByteUnsafe
          */
         unsafe = newUnsafe();
         // new一个DefaultChannelPipeline
@@ -494,7 +496,11 @@ public abstract class AbstractChannel extends DefaultAttributeMap implements Cha
                 return;
             }
 
-            // 这里传入的eventLoop若是服务端则是workerGroup中的一个NioEventLoop，若是客户端则就是group中的一个NioEventLoop
+            /**
+             * 这里完成了Channel与eventLoop的关联
+             *
+             * 这里传入的eventLoop若是服务端则是workerGroup中的一个NioEventLoop，若是客户端则就是group中的一个NioEventLoop
+             */
             AbstractChannel.this.eventLoop = eventLoop;
 
             // 这里会调用NioEventLoop的超类AbstractEventExecutor的inEventLoop，然后再调用SingleThreadEventExecutor的inEventLoop
@@ -656,8 +662,7 @@ public abstract class AbstractChannel extends DefaultAttributeMap implements Cha
         public void close(final ChannelPromise promise) {
             assertEventLoop();
 
-            ClosedChannelException closedChannelException =
-                    StacklessClosedChannelException.newInstance(AbstractChannel.class, "close(ChannelPromise)");
+            ClosedChannelException closedChannelException = StacklessClosedChannelException.newInstance(AbstractChannel.class, "close(ChannelPromise)");
             close(promise, closedChannelException, closedChannelException, false);
         }
 
@@ -735,10 +740,11 @@ public abstract class AbstractChannel extends DefaultAttributeMap implements Cha
 
         private void close(final ChannelPromise promise, final Throwable cause,
                            final ClosedChannelException closeCause, final boolean notify) {
+            // 判断是否设置了不能取消
             if (!promise.setUncancellable()) {
                 return;
             }
-
+            // 防止二次关闭，如果已经关闭
             if (closeInitiated) {
                 if (closeFuture.isDone()) {
                     // Closed already.
@@ -757,7 +763,9 @@ public abstract class AbstractChannel extends DefaultAttributeMap implements Cha
 
             closeInitiated = true;
 
+            // 判断当前连接是否还连着
             final boolean wasActive = isActive();
+            // 输出缓存队列
             final ChannelOutboundBuffer outboundBuffer = this.outboundBuffer;
             this.outboundBuffer = null; // Disallow adding any messages and flushes to outboundBuffer.
             Executor closeExecutor = prepareToClose();
@@ -766,10 +774,11 @@ public abstract class AbstractChannel extends DefaultAttributeMap implements Cha
                     @Override
                     public void run() {
                         try {
-                            // Execute the close.
+                            // Execute the close. 调用底层关闭socket
                             doClose0(promise);
                         } finally {
                             // Call invokeLater so closeAndDeregister is executed in the EventLoop again!
+                            // 删除队列缓存中还没发出去的消息，释放资源
                             invokeLater(new Runnable() {
                                 @Override
                                 public void run() {
@@ -778,6 +787,10 @@ public abstract class AbstractChannel extends DefaultAttributeMap implements Cha
                                         outboundBuffer.failFlushed(cause, notify);
                                         outboundBuffer.close(closeCause);
                                     }
+                                    /**
+                                     * 从head节点开始遍历pipeline执行ChannelInboundHandler的channelInactive
+                                     * 从head节点开始遍历pipeline执行ChannelInboundHandler的channelUnregistered
+                                     */
                                     fireChannelInactiveAndDeregister(wasActive);
                                 }
                             });

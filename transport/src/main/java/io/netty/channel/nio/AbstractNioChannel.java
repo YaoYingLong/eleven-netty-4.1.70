@@ -88,6 +88,9 @@ public abstract class AbstractNioChannel extends AbstractChannel {
          * 若是服务端：ch是在调用NioSocketChannel的构造方法时传入的SocketChannel
          */
         this.ch = ch;
+        /**
+         * 若是客户端初始时被赋值为SelectionKey.OP_READ，若是服务端初始时被赋值为SelectionKey.OP_ACCEPT
+         */
         this.readInterestOp = readInterestOp;
         try {
             // 将NIO的ServerSocketChannel或SocketChannel设置为非阻塞模式

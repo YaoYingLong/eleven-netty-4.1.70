@@ -66,6 +66,8 @@ public class NioServerSocketChannel extends AbstractNioMessageChannel implements
              *  这里最终会调用超类SelectorProviderImpl的openServerSocketChannel，返回一个ServerSocketChannelImpl
              *      - 如果是Windows平台provider是WindowsSelectorProvider，通过openSelector产生的是WindowsSelectorImpl
              *      - 如果是Linux平台则provider是EPollSelectorProvider，通过openSelector产生的是EPollSelectorImpl
+             *
+             *  注意服务端这里调用的是openServerSocketChannel，客户端是调用的openSocketChannel
              */
             return provider.openServerSocketChannel();
         } catch (IOException e) {
@@ -160,9 +162,16 @@ public class NioServerSocketChannel extends AbstractNioMessageChannel implements
         javaChannel().close();
     }
 
+    /**
+     * doReadMessages方法是在NioMessageUnsafe中的read方法中被调用的
+     *
+     * @param buf
+     * @return
+     * @throws Exception
+     */
     @Override
     protected int doReadMessages(List<Object> buf) throws Exception {
-        // 获取SocketChannel
+        // 这里其实就是调用serverSocketChannel.accept()获取客户端新连接的SocketChannel对象
         SocketChannel ch = SocketUtils.accept(javaChannel());
 
         try {

@@ -63,6 +63,10 @@ public abstract class ChannelInitializer<C extends Channel> extends ChannelInbou
      * This method will be called once the {@link Channel} was registered. After the method returns this instance
      * will be removed from the {@link ChannelPipeline} of the {@link Channel}.
      *
+     * 一旦 {@link Channel} 被注册就会调用该方法即在channelRegistered方法中被调用
+     * 该方法返回后此实例将从{@link Channel}的{@link ChannelPipeline}中删除
+     *
+     *
      * @param ch            the {@link Channel} which was registered.
      * @throws Exception    is thrown if an error occurs. In that case it will be handled by
      *                      {@link #exceptionCaught(ChannelHandlerContext, Throwable)} which will by default close
@@ -73,8 +77,8 @@ public abstract class ChannelInitializer<C extends Channel> extends ChannelInbou
     @Override
     @SuppressWarnings("unchecked")
     public final void channelRegistered(ChannelHandlerContext ctx) throws Exception {
-        // Normally this method will never be called as handlerAdded(...) should call initChannel(...) and remove
-        // the handler.
+        // Normally this method will never be called as handlerAdded(...) should call initChannel(...) and remove the handler.
+        // 通常，此方法永远不会被调用，因为 handlerAdded（...） 应该调用 initChannel（...） 并删除处理程序。
         if (initChannel(ctx)) {
             // we called initChannel(...) so we need to call now pipeline.fireChannelRegistered() to ensure we not
             // miss an event.

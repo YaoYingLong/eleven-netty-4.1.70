@@ -69,10 +69,13 @@ public class NioSocketChannel extends AbstractNioByteChannel implements io.netty
              *  {@link SelectorProvider#provider()} which is called by each SocketChannel.open() otherwise.
              *
              *  See <a href="https://github.com/netty/netty/issues/2308">#2308</a>.
-             *  如果是Windows平台provider是WindowsSelectorProvider，通过openSelector产生的是WindowsSelectorImpl
-             *  如果是Linux平台则provider是EPollSelectorProvider，通过openSelector产生的是EPollSelectorImpl
+             *
              *  调用SelectorProvider的openServerSocketChannel方法创建一个在本地端口进行监听的服务Socket通道，相当于NIO中调用ServerSocketChannel.open()方法
              *  这里最终会调用超类SelectorProviderImpl的openServerSocketChannel，返回一个ServerSocketChannelImpl
+             *      - 如果是Windows平台provider是WindowsSelectorProvider，通过openSelector产生的是WindowsSelectorImpl
+             *      - 如果是Linux平台则provider是EPollSelectorProvider，通过openSelector产生的是EPollSelectorImpl
+             *
+             *  注意服务端这里调用的是openServerSocketChannel，客户端是调用的openSocketChannel
              */
             return provider.openSocketChannel();
         } catch (IOException e) {
@@ -111,6 +114,8 @@ public class NioSocketChannel extends AbstractNioByteChannel implements io.netty
      *
      * 需要注意的是Server端的NioServerSocketChannel的超类是AbstractNioMessageChannel
      * Client端的NioSocketChannel的超类是AbstractNioByteChannel
+     *
+     * 若是通过NioServerSocketChannel的doReadMessages方法中被调用的话，parent其实就是对应的NioServerSocketChannel
      */
     public NioSocketChannel(Channel parent, SocketChannel socket) {
         // 调用超类AbstractNioByteChannel的构造方法

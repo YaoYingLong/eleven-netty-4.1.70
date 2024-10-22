@@ -73,6 +73,7 @@ public class ServerBootstrap extends AbstractBootstrap<ServerBootstrap, ServerCh
      */
     @Override
     public ServerBootstrap group(EventLoopGroup group) {
+        // 如果传入一个group时，bossGroup和workerGroup就是同一个NioEventLoopGroup
         return group(group, group);
     }
 
@@ -207,6 +208,13 @@ public class ServerBootstrap extends AbstractBootstrap<ServerBootstrap, ServerCh
             };
         }
 
+        /**
+         * channelRead方法的调用时机，其实当一个Client连接到Server时，Java底层NIO的ServerSocketChannel就会有一个SelectionKey.OP_ACCEPT的事件就绪，
+         * 接着就会调用NioServerSocketChannel的doReadMessages()方法
+         *
+         * @param ctx
+         * @param msg
+         */
         @Override
         @SuppressWarnings("unchecked")
         public void channelRead(ChannelHandlerContext ctx, Object msg) {

@@ -97,13 +97,19 @@ public class DefaultChannelPipeline implements ChannelPipeline {
      */
     private boolean registered;
 
+    /**
+     * 在实例化一个Channel时，必然都要实例化一个ChannelPipeline
+     * @param channel NioSocketChannel或NioServerSocketChannel
+     */
     protected DefaultChannelPipeline(Channel channel) {
         this.channel = ObjectUtil.checkNotNull(channel, "channel");
         succeededFuture = new SucceededChannelFuture(channel, null);
         voidPromise =  new VoidChannelPromise(channel, true);
 
-        tail = new TailContext(this);   // 创建ChannelPipeline的尾节点
-        head = new HeadContext(this);   // 创建ChannelPipeline的头节点
+        // 创建ChannelPipeline的尾节点，是一个ChannelInboundHandler
+        tail = new TailContext(this);
+        // 创建ChannelPipeline的头节点，是一个ChannelOutboundHandler也是ChannelInboundHandler
+        head = new HeadContext(this);
 
         head.next = tail;   // 将head头节点的next指向tail尾节点
         tail.prev = head;   // 将tail尾节点的prev指向head头节点
@@ -946,11 +952,13 @@ public class DefaultChannelPipeline implements ChannelPipeline {
 
     @Override
     public final ChannelFuture connect(SocketAddress remoteAddress) {
+        // 注意这里是调用的tail的connect，会从tail往前遍历整个链表，最终调用AbstractChannelHandlerContext的connect方法
         return tail.connect(remoteAddress);
     }
 
     @Override
     public final ChannelFuture connect(SocketAddress remoteAddress, SocketAddress localAddress) {
+        // 注意这里是调用的tail的connect，会从tail往前遍历整个链表，最终调用AbstractChannelHandlerContext的connect方法
         return tail.connect(remoteAddress, localAddress);
     }
 
