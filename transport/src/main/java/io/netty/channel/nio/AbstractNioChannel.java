@@ -13,6 +13,7 @@
  * License for the specific language governing permissions and limitations
  * under the License.
  */
+
 package io.netty.channel.nio;
 
 import io.netty.buffer.ByteBuf;
@@ -47,7 +48,8 @@ import java.util.concurrent.TimeUnit;
  */
 public abstract class AbstractNioChannel extends AbstractChannel {
 
-    private static final InternalLogger logger = InternalLoggerFactory.getInstance(AbstractNioChannel.class);
+    private static final InternalLogger logger =
+        InternalLoggerFactory.getInstance(AbstractNioChannel.class);
     /**
      * 若是服务端：ch是在调用NioServerSocketChannel的构造方法时传入的ServerSocketChannel
      * 若是服务端：ch是在调用NioSocketChannel的构造方法时传入的SocketChannel
@@ -76,9 +78,9 @@ public abstract class AbstractNioChannel extends AbstractChannel {
     /**
      * Create a new instance
      *
-     * @param parent            the parent {@link Channel} by which this instance was created. May be {@code null}
-     * @param ch                the underlying {@link SelectableChannel} on which it operates
-     * @param readInterestOp    the ops to set to receive data from the {@link SelectableChannel}
+     * @param parent         the parent {@link Channel} by which this instance was created. May be {@code null}
+     * @param ch             the underlying {@link SelectableChannel} on which it operates
+     * @param readInterestOp the ops to set to receive data from the {@link SelectableChannel}
      */
     protected AbstractNioChannel(Channel parent, SelectableChannel ch, int readInterestOp) {
         // 这里传入的parent为null, 但是超类中会初始化DefaultChannelPipeline
@@ -249,7 +251,8 @@ public abstract class AbstractNioChannel extends AbstractChannel {
         }
 
         @Override
-        public final void connect(final SocketAddress remoteAddress, final SocketAddress localAddress, final ChannelPromise promise) {
+        public final void connect(final SocketAddress remoteAddress,
+                                  final SocketAddress localAddress, final ChannelPromise promise) {
             if (!promise.setUncancellable() || !ensureOpen(promise)) {
                 return;
             }
@@ -261,7 +264,7 @@ public abstract class AbstractNioChannel extends AbstractChannel {
                 }
 
                 boolean wasActive = isActive();
-                // 最终调用NioSocketChannel的doConnect方法
+                // 最终调用NioSocketChannel的doConnect方法，如果连接创建成功，会通过fulfillConnectPromise方法调用channelActive
                 if (doConnect(remoteAddress, localAddress)) {
                     fulfillConnectPromise(promise, wasActive);
                 } else {
@@ -274,10 +277,11 @@ public abstract class AbstractNioChannel extends AbstractChannel {
                         connectTimeoutFuture = eventLoop().schedule(new Runnable() {
                             @Override
                             public void run() {
-                                ChannelPromise connectPromise = AbstractNioChannel.this.connectPromise;
+                                ChannelPromise connectPromise =
+                                    AbstractNioChannel.this.connectPromise;
                                 if (connectPromise != null && !connectPromise.isDone()
-                                        && connectPromise.tryFailure(new ConnectTimeoutException(
-                                                "connection timed out: " + remoteAddress))) {
+                                    && connectPromise.tryFailure(new ConnectTimeoutException(
+                                    "connection timed out: " + remoteAddress))) {
                                     close(voidPromise());
                                 }
                             }
@@ -351,7 +355,8 @@ public abstract class AbstractNioChannel extends AbstractChannel {
                 doFinishConnect();
                 fulfillConnectPromise(connectPromise, wasActive);
             } catch (Throwable t) {
-                fulfillConnectPromise(connectPromise, annotateConnectException(t, requestedRemoteAddress));
+                fulfillConnectPromise(connectPromise,
+                    annotateConnectException(t, requestedRemoteAddress));
             } finally {
                 // Check for null as the connectTimeoutFuture is only created if a connectTimeoutMillis > 0 is used
                 // See https://github.com/netty/netty/issues/1770
@@ -380,7 +385,8 @@ public abstract class AbstractNioChannel extends AbstractChannel {
 
         private boolean isFlushPending() {
             SelectionKey selectionKey = selectionKey();
-            return selectionKey.isValid() && (selectionKey.interestOps() & SelectionKey.OP_WRITE) != 0;
+            return selectionKey.isValid() &&
+                (selectionKey.interestOps() & SelectionKey.OP_WRITE) != 0;
         }
     }
 
@@ -392,7 +398,7 @@ public abstract class AbstractNioChannel extends AbstractChannel {
     @Override
     protected void doRegister() throws Exception {
         boolean selected = false;
-        for (;;) {
+        for (; ; ) {
             try {
                 /**
                  * 该类其实就是调用ServerBootstrap或Bootstrap的channel方法时传入的，在执行bind是实例化的NioServerSocketChannel或NioSocketChannel的超类
@@ -443,7 +449,8 @@ public abstract class AbstractNioChannel extends AbstractChannel {
     /**
      * Connect to the remote peer
      */
-    protected abstract boolean doConnect(SocketAddress remoteAddress, SocketAddress localAddress) throws Exception;
+    protected abstract boolean doConnect(SocketAddress remoteAddress, SocketAddress localAddress)
+        throws Exception;
 
     /**
      * Finish the connect
